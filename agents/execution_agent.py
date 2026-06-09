@@ -74,6 +74,7 @@ class ExecutionAgent(BaseAgent):
         dynatrace: Any,
         gitlab: Any,
         *,
+        web_search: Any | None = None,
         max_attempts: int = 3,
         backoff_min: float = 2.0,
         backoff_max: float = 10.0,
@@ -84,6 +85,7 @@ class ExecutionAgent(BaseAgent):
             mission_id: Mission this agent serves.
             dynatrace: Dynatrace MCP client (async methods).
             gitlab: GitLab MCP client (async methods).
+            web_search: Web-search client (async ``search`` method).
             max_attempts: MCP retry attempts (ARCHITECTURE.md retry policy).
             backoff_min: Minimum exponential backoff seconds.
             backoff_max: Maximum exponential backoff seconds.
@@ -91,6 +93,7 @@ class ExecutionAgent(BaseAgent):
         super().__init__(name="execution", mission_id=mission_id)
         self.dynatrace = dynatrace
         self.gitlab = gitlab
+        self.web_search = web_search
         self._max_attempts = max_attempts
         self._backoff_min = backoff_min
         self._backoff_max = backoff_max
@@ -134,7 +137,11 @@ class ExecutionAgent(BaseAgent):
             AgentResult with the result or failure reason.
         """
         start = perf_counter()
-        plan = self._resolve(task.description)
+        plan = self._resolve_tool(task.tool)
+        if plan is None and task.tool is not None:
+            return await self._fail(task, "tool_unavailable", {"tool": task.tool}, start)
+        if plan is None:
+            plan = self._resolve(task.description)
         if plan is None:
             return await self._fail(task, "no_matching_tool", {"description": task.description}, start)
         if plan.mutating:
@@ -178,7 +185,14 @@ class ExecutionAgent(BaseAgent):
             reraise=True,
         ):
             with attempt:
-                return await func(**tool_args)
+                try:
+                    return await func(**tool_args)
+                except TypeError as exc:
+                    raise MCPToolCallError(
+                        f"bad tool arguments: {exc}",
+                        context={"args": list(tool_args)},
+                        recoverable=False,
+                    ) from exc
         raise MCPToolCallError("retry loop exhausted", context={"mission_id": self.mission_id})
 
     async def _approval_block(
@@ -220,6 +234,12 @@ class ExecutionAgent(BaseAgent):
         )
         self._log.error("task_failed", task_id=task.task_id, reason=reason)
         return self._finish("failed", {"error": reason}, [f"task failed: {reason}"], start)
+
+    def _resolve_tool(self, tool: str | None) -> ToolPlan | None:
+        """Map an explicit task.tool name to a ToolPlan (None when unset/unknown)."""
+        if tool == "web_search" and self.web_search is not None:
+            return ToolPlan(self.web_search.search, mutating=False, name="web_search", action_type=None)
+        return None
 
     def _resolve(self, description: str) -> ToolPlan | None:
         """Map a task description to an MCP tool, most-specific match first.

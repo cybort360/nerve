@@ -35,9 +35,14 @@ VALID_ROLES = ("planner", "execution", "risk", "auditor")
 _PROMPT_TEMPLATE = (
     "You are nerve-planner, decomposing an operational goal into tasks.\n"
     "Respond with ONLY a JSON array. Each element is an object with keys: "
-    "'description' (string), 'agent_role' (one of {roles}), and 'depends_on' "
-    "(array of zero-based indices of earlier tasks). Produce at least {min_tasks} "
-    "tasks.\n\nGOAL: {goal}\nCONTEXT: {context}\n"
+    "'description' (string), 'agent_role' (one of {roles}), 'depends_on' "
+    "(array of zero-based indices of earlier tasks), and — for research tasks — "
+    "'tool' and 'tool_args'.\n"
+    "The available tool is 'web_search' with tool_args {{\"query\": <string>}}. "
+    "For any task that requires finding information on the internet, set "
+    "agent_role to 'execution', tool to 'web_search', and put a focused search "
+    "query in tool_args.query. For non-tool tasks omit 'tool'.\n"
+    "Produce at least {min_tasks} tasks.\n\nGOAL: {goal}\nCONTEXT: {context}\n"
 )
 
 
@@ -47,6 +52,8 @@ class TaskDefinition(BaseModel):
     description: str
     agent_role: AgentRole
     depends_on: list[int] = Field(default_factory=list)
+    tool: str | None = None
+    tool_args: dict = Field(default_factory=dict)
 
 
 class MissionPlanner:
@@ -122,7 +129,13 @@ class MissionPlanner:
     def _to_tasks(mission_id: str, definitions: list[TaskDefinition]) -> list[Task]:
         """Convert definitions into Task models, resolving index dependencies."""
         tasks = [
-            Task(mission_id=mission_id, agent_role=d.agent_role, description=d.description)
+            Task(
+                mission_id=mission_id,
+                agent_role=d.agent_role,
+                description=d.description,
+                tool=d.tool,
+                tool_args=d.tool_args,
+            )
             for d in definitions
         ]
         for task, definition in zip(tasks, definitions):
@@ -194,3 +207,18 @@ class MissionPlanner:
         model = GenerativeModel(settings.gemini_model)
         response = await asyncio.to_thread(model.generate_content, prompt)
         return response.text
+
+
+async def gemini_generate(prompt: str) -> str:
+    """Public Gemini text-generation seam for modules outside the planner.
+
+    Wraps the planner's default generator so callers don't reach into a private
+    method. This is the single seam to update when migrating to google-adk.
+
+    Args:
+        prompt: Prompt text.
+
+    Returns:
+        The model's text response.
+    """
+    return await MissionPlanner()._default_generate(prompt)

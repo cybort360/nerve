@@ -81,6 +81,8 @@ class Task(_BaseDoc):
     mission_id: str
     agent_role: AgentRole
     description: str
+    tool: str | None = None
+    tool_args: dict = Field(default_factory=dict)
     status: TaskStatus = "pending"
     depends_on: list[str] = Field(default_factory=list)
     result: dict = Field(default_factory=dict)

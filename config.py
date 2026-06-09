@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     gitlab_token: str = Field(description="GitLab personal access token (api scope).")
     gitlab_project_id: str = Field(description="Default GitLab project ID.")
 
+    # --- Web Search (Tavily) ---
+    tavily_api_key: str = Field(
+        default="", description="Tavily API key for web search (free tier ~1,000/month)."
+    )
+    tavily_api_url: str = Field(
+        default="https://api.tavily.com/search", description="Tavily search endpoint."
+    )
+    web_search_max_results: int = Field(
+        default=5, ge=1, description="Max web search results per query."
+    )
+
     # --- Orchestrator ---
     orchestration_interval_seconds: int = Field(
         default=30, ge=1, description="Seconds between orchestration loop cycles."
