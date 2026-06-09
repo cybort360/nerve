@@ -137,7 +137,11 @@ class ExecutionAgent(BaseAgent):
             AgentResult with the result or failure reason.
         """
         start = perf_counter()
-        plan = self._resolve_tool(task.tool) or self._resolve(task.description)
+        plan = self._resolve_tool(task.tool)
+        if plan is None and task.tool is not None:
+            return await self._fail(task, "tool_unavailable", {"tool": task.tool}, start)
+        if plan is None:
+            plan = self._resolve(task.description)
         if plan is None:
             return await self._fail(task, "no_matching_tool", {"description": task.description}, start)
         if plan.mutating:
@@ -181,7 +185,14 @@ class ExecutionAgent(BaseAgent):
             reraise=True,
         ):
             with attempt:
-                return await func(**tool_args)
+                try:
+                    return await func(**tool_args)
+                except TypeError as exc:
+                    raise MCPToolCallError(
+                        f"bad tool arguments: {exc}",
+                        context={"args": list(tool_args)},
+                        recoverable=False,
+                    ) from exc
         raise MCPToolCallError("retry loop exhausted", context={"mission_id": self.mission_id})
 
     async def _approval_block(

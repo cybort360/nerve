@@ -37,3 +37,34 @@ async def test_web_search_task_invokes_client(seeded_task):
     result = await agent.run({"task": task, "tool_args": task.tool_args})
     assert result.status == "success"
     assert web.calls == [("cheapest tickets", None)]
+
+
+async def test_web_search_tool_set_but_client_missing_fails_cleanly(mock_db):
+    from state import database as db
+    mission = await db.create_mission("g", "GENERAL")
+    task = Task(
+        mission_id=mission.mission_id, agent_role="execution",
+        description="list deployments and problems",  # would keyword-match if it fell through
+        tool="web_search", tool_args={"query": "x"},
+    )
+    await db.add_tasks([task])
+    agent = ExecutionAgent(mission.mission_id, dynatrace=None, gitlab=None)  # no web_search client
+    result = await agent.run({"task": task, "tool_args": task.tool_args})
+    assert result.status == "failed"
+    # must NOT have silently routed to a dynatrace/gitlab tool
+
+
+async def test_web_search_empty_tool_args_fails_gracefully(mock_db):
+    from state import database as db
+    mission = await db.create_mission("g", "GENERAL")
+    task = Task(
+        mission_id=mission.mission_id, agent_role="execution",
+        description="search", tool="web_search", tool_args={},
+    )
+    await db.add_tasks([task])
+    web = _FakeWebSearch()
+    agent = ExecutionAgent(mission.mission_id, dynatrace=None, gitlab=None, web_search=web)
+    # Empty tool_args -> search() called with no query -> TypeError -> converted to MCPError -> task fails, no uncaught exception
+    result = await agent.run({"task": task, "tool_args": task.tool_args})
+    assert result.status == "failed"
+    assert web.calls == []  # client never successfully invoked
