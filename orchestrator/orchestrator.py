@@ -22,6 +22,7 @@ from config import settings
 from exceptions import PlanningFailedError
 from mcp_tools.dynatrace import DynatraceClient
 from mcp_tools.gitlab import GitLabClient
+from mcp_tools.web_search import WebSearchClient
 from orchestrator.mission_graph import MissionGraph
 from orchestrator.planner import MissionPlanner
 from state import database as db
@@ -178,7 +179,7 @@ class NERVEOrchestrator:
         await db.emit_event(
             mission_id, EVENT_TASK_STARTED, {"task_id": task.task_id}, SOURCE_ORCH, task_id=task.task_id
         )
-        await agent.run({"task": task})
+        await agent.run({"task": task, "tool_args": task.tool_args})
 
     async def _handle_retries(self, mission_id: str, tasks: list[Task]) -> None:
         """Re-queue failed tasks under the retry limit, emitting TASK_RETRYING.
@@ -307,4 +308,5 @@ class NERVEOrchestrator:
         """
         dynatrace = DynatraceClient(mission_id=mission_id, failure_engine=self._failure_engine)
         gitlab = GitLabClient(mission_id=mission_id, failure_engine=self._failure_engine)
-        return ExecutionAgent(mission_id, dynatrace, gitlab)
+        web_search = WebSearchClient(mission_id=mission_id, failure_engine=self._failure_engine)
+        return ExecutionAgent(mission_id, dynatrace, gitlab, web_search=web_search)
