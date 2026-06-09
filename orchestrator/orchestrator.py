@@ -222,7 +222,7 @@ class NERVEOrchestrator:
             return
         all_completed = all(t.status == "completed" for t in state.tasks)
         if all_completed and mission.mission_type == "GENERAL":
-            from modules.research_concierge.synthesis import synthesize_and_handoff
+            from modules.research_concierge.synthesis import synthesize_and_handoff  # lazy: avoids circular import
             await synthesize_and_handoff(mission.mission_id)
         await self._set_status(mission, "resolved" if all_completed else "failed")
 

@@ -6,6 +6,7 @@ from typing import Awaitable, Callable
 import structlog
 
 from state import database as db
+from state.models import Task
 
 log = structlog.get_logger().bind(component="research_concierge")
 
@@ -52,7 +53,7 @@ async def _run(mission_id: str, generate: GenerateFn) -> None:
     await _create_handoff(mission_id, recommendation)
 
 
-def _collect_findings(tasks: list) -> str:
+def _collect_findings(tasks: list[Task]) -> str:
     """Concatenate completed web-search task results into a prompt-ready string."""
     lines: list[str] = []
     for task in tasks:
@@ -89,7 +90,7 @@ async def _notify_telegram(action_id: str, mission_id: str, recommendation: str)
 
 
 def _default_generate() -> GenerateFn:
-    """Return the same Gemini text generator the planner uses (single seam)."""
-    from orchestrator.planner import MissionPlanner
+    """Return the planner's public Gemini text-generation seam."""
+    from orchestrator.planner import gemini_generate
 
-    return MissionPlanner()._default_generate
+    return gemini_generate

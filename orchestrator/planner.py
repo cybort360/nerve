@@ -207,3 +207,18 @@ class MissionPlanner:
         model = GenerativeModel(settings.gemini_model)
         response = await asyncio.to_thread(model.generate_content, prompt)
         return response.text
+
+
+async def gemini_generate(prompt: str) -> str:
+    """Public Gemini text-generation seam for modules outside the planner.
+
+    Wraps the planner's default generator so callers don't reach into a private
+    method. This is the single seam to update when migrating to google-adk.
+
+    Args:
+        prompt: Prompt text.
+
+    Returns:
+        The model's text response.
+    """
+    return await MissionPlanner()._default_generate(prompt)
