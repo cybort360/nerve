@@ -173,7 +173,8 @@ class WebSearchClient(BaseMCPClient):
         Raises:
             MCPError: A typed error on transport/auth/rate-limit failure.
         """
-        args = {"query": query, "max_results": max_results or settings.web_search_max_results}
+        resolved = max_results if max_results is not None else settings.web_search_max_results
+        args = {"query": query, "max_results": resolved}
         raw = await self.call_tool(TOOL_SEARCH, args)
         try:
             return SearchResults.model_validate(raw)

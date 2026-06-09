@@ -4,7 +4,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from exceptions import MCPAuthError, MCPError
+from exceptions import MCPAuthError, MCPError, MCPRateLimitError
 from mcp_tools.web_search import SearchResults, WebSearchClient
 
 TAVILY_OK = {
@@ -58,3 +58,9 @@ async def test_search_empty_results_ok():
     out = await client.search("nothing")
     assert out.results == []
     assert out.answer is None
+
+
+async def test_search_rate_limit_maps_to_typed():
+    client = _client(lambda req: httpx.Response(429, json={"detail": "slow down"}))
+    with pytest.raises(MCPRateLimitError):
+        await client.search("anything")
