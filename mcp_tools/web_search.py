@@ -118,10 +118,7 @@ class WebSearchClient(BaseMCPClient):
                 "TAVILY_API_KEY is not set", context={"server": self.server_name}
             )
         if self._http is None:
-            raise MCPConnectionError(
-                "web-search client not connected",
-                context={"server": self.server_name, "tool": tool_name},
-            )
+            await self.connect()
         body = {
             "api_key": self._api_key,
             "query": arguments["query"],

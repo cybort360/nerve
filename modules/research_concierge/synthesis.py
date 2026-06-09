@@ -54,14 +54,27 @@ async def _run(mission_id: str, generate: GenerateFn) -> None:
 
 
 def _collect_findings(tasks: list[Task]) -> str:
-    """Concatenate completed web-search task results into a prompt-ready string."""
+    """Concatenate completed web-search task results into a prompt-ready string.
+
+    Prefers Tavily's synthesized ``answer``; falls back to the top result
+    snippets so a recommendation is still produced when no answer is returned.
+    """
     lines: list[str] = []
     for task in tasks:
-        if task.status != "completed" or not task.result:
+        if task.status != "completed" or not isinstance(task.result, dict):
             continue
-        answer = task.result.get("answer") if isinstance(task.result, dict) else None
+        answer = task.result.get("answer")
         if answer:
             lines.append(f"- {task.description}: {answer}")
+            continue
+        results = task.result.get("results") or []
+        snippets = "; ".join(
+            f"{r.get('title', '')} ({r.get('url', '')})"
+            for r in results[:3]
+            if isinstance(r, dict)
+        )
+        if snippets:
+            lines.append(f"- {task.description}: {snippets}")
     return "\n".join(lines)
 
 

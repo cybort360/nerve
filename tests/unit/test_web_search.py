@@ -64,3 +64,17 @@ async def test_search_rate_limit_maps_to_typed():
     client = _client(lambda req: httpx.Response(429, json={"detail": "slow down"}))
     with pytest.raises(MCPRateLimitError):
         await client.search("anything")
+
+
+async def test_search_lazy_connects_when_not_connected(monkeypatch):
+    client = WebSearchClient(api_key="k", api_url="https://api.tavily.com/search")
+
+    async def fake_connect():
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"results": []}))
+        )
+        client._session = client._http
+
+    monkeypatch.setattr(client, "connect", fake_connect)
+    out = await client.search("q")  # _http is None initially -> must trigger connect()
+    assert out.results == []
