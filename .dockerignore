@@ -1,0 +1,23 @@
+# Secrets — never ship env files; Cloud Run injects secrets from Secret Manager.
+.env
+.env.example
+
+# Python caches / bytecode
+__pycache__/
+*.pyc
+
+# Version control
+.git
+
+# Tests are not needed in the runtime image
+tests/
+
+# Docs (markdown) are not needed at runtime
+*.md
+
+# Common local-only artifacts (kept out of the build context)
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.DS_Store

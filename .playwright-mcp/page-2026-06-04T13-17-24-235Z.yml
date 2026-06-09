@@ -1,0 +1,186 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]: NERVE
+      - generic [ref=e8]: AUTONOMOUS OPS CONTROL
+    - generic [ref=e9]:
+      - generic [ref=e10]: NERVE
+      - generic [ref=e11]: 5b4d4585
+      - generic [ref=e12]: ·
+      - generic [ref=e13]: INCIDENT_RESPONSE
+      - generic [ref=e14]: EXECUTING
+    - generic [ref=e15]:
+      - generic [ref=e18]: LINKED
+      - generic [ref=e19]:
+        - button "INCIDENT_RESPONSE · 5b4d4585 ▾" [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]: INCIDENT_RESPONSE · 5b4d4585
+          - generic [ref=e22]: ▾
+        - text: ▸
+      - button "⚡ INCIDENT DEMO" [ref=e23] [cursor=pointer]
+  - generic [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e27]: Mission State
+      - generic [ref=e28]: EXECUTING
+      - generic [ref=e29]: elapsed 61m 19s
+    - generic [ref=e30]:
+      - generic [ref=e32]: Risk Index
+      - generic [ref=e33]: "0.48"
+      - generic [ref=e34]: elevated
+    - generic [ref=e35]:
+      - generic [ref=e37]: Neural Tasks
+      - generic [ref=e38]: "0"
+    - generic [ref=e39]:
+      - generic [ref=e41]: Needs Attention
+      - generic [ref=e42]: 0 / 0
+      - generic [ref=e43]: approvals / failures
+    - generic [ref=e44]:
+      - generic [ref=e45]:
+        - generic [ref=e46]: System Pulse
+        - generic [ref=e47]: ACTIVE
+      - img [ref=e48]
+  - main [ref=e52]:
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - text: SYNAPTIC MISSION MAP
+        - generic [ref=e56]: 0 NEURONS
+      - generic [ref=e57]:
+        - img [ref=e58]
+        - generic [ref=e59]:
+          - generic [ref=e61]: AWAITING NEURAL ACTIVITY
+          - generic [ref=e62]: INCIDENT AUTOPILOT · STANDBY
+      - generic [ref=e63]:
+        - generic [ref=e64]: PENDING
+        - generic [ref=e66]: ACTIVE
+        - generic [ref=e68]: COMPLETED
+        - generic [ref=e70]: RETRYING
+        - generic [ref=e72]: FAILED
+    - generic [ref=e74]:
+      - generic [ref=e75]:
+        - generic [ref=e76]: RISK ASSESSMENT
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - img [ref=e80]
+            - generic [ref=e84]:
+              - generic [ref=e85]: "0.48"
+              - generic [ref=e86]: ELEVATED
+          - generic [ref=e87]:
+            - generic [ref=e88]:
+              - generic [ref=e89]: failed_tasks
+              - generic [ref=e91]: "0.00"
+            - generic [ref=e92]:
+              - generic [ref=e93]: retries
+              - generic [ref=e95]: "0.00"
+            - generic [ref=e96]:
+              - generic [ref=e97]: failure_injections
+              - generic [ref=e99]: "0.90"
+            - generic [ref=e100]:
+              - generic [ref=e101]: contradictions
+              - generic [ref=e103]: "1.00"
+      - generic [ref=e104]:
+        - generic [ref=e105]:
+          - text: PENDING APPROVALS
+          - generic [ref=e107]: "0"
+        - generic [ref=e109]: // no actions awaiting approval
+      - generic [ref=e110]:
+        - generic [ref=e111]: ACTIVE FAILURES
+        - generic [ref=e114]: // all systems nominal
+  - generic [ref=e115]:
+    - generic [ref=e116]:
+      - text: AGENT ACTIVITY · LIVE TELEMETRY
+      - generic [ref=e118]: EVENT STREAM
+    - list [ref=e119]:
+      - listitem [ref=e120]:
+        - generic [ref=e121]: 12:21:36
+        - generic [ref=e122]: user
+        - generic [ref=e123]: ACTION_REJECTED ▌
+        - generic [ref=e124]: action_id=f64ae632-d8bf-40bd-a816-e5 approved_by=telegram
+      - listitem [ref=e125]:
+        - generic [ref=e126]: 12:21:36
+        - generic [ref=e127]: user
+        - generic [ref=e128]: ACTION_APPROVED
+        - generic [ref=e129]: action_id=f64ae632-d8bf-40bd-a816-e5 approved_by=telegram
+      - listitem [ref=e130]:
+        - generic [ref=e131]: 12:21:33
+        - generic [ref=e132]: user
+        - generic [ref=e133]: ACTION_APPROVED
+        - generic [ref=e134]: action_id=f64ae632-d8bf-40bd-a816-e5 approved_by=telegram
+      - listitem [ref=e135]:
+        - generic [ref=e136]: 12:16:38
+        - generic [ref=e137]: failure_engine
+        - generic [ref=e138]: DEMO_APPROVAL_REQUESTED
+        - generic [ref=e139]: action=gitlab_rollback
+      - listitem [ref=e140]:
+        - generic [ref=e141]: 12:16:31
+        - generic [ref=e142]: failure_engine
+        - generic [ref=e143]: FAILURE_CLEARED
+        - generic [ref=e144]: type=CONTRADICTORY_METRICS target=get_metrics severity=0.9
+      - listitem [ref=e145]:
+        - generic [ref=e146]: 12:16:23
+        - generic [ref=e147]: orchestrator
+        - generic [ref=e148]: REPLAN_TRIGGERED
+        - generic [ref=e149]: reason=contradictory_metrics risk=0.48
+      - listitem [ref=e150]:
+        - generic [ref=e151]: 12:16:23
+        - generic [ref=e152]: agent
+        - generic [ref=e153]: RISK_SCORE_UPDATED
+        - generic [ref=e154]: overall=0.48 threshold_exceeded=false
+      - listitem [ref=e155]:
+        - generic [ref=e156]: 12:16:20
+        - generic [ref=e157]: failure_engine
+        - generic [ref=e158]: FAILURE_INJECTED
+        - generic [ref=e159]: type=CONTRADICTORY_METRICS target=get_metrics severity=0.9
+      - listitem [ref=e160]:
+        - generic [ref=e161]: 12:16:08
+        - generic [ref=e162]: orchestrator
+        - generic [ref=e163]: RESOLUTION_MONITORING_STARTED
+        - generic [ref=e164]: service_id=checkout issue_iid=10 baseline_error_rate=0.02
+      - listitem [ref=e165]:
+        - generic [ref=e166]: 12:16:06
+        - generic [ref=e167]: orchestrator
+        - generic [ref=e168]: ACTION_CREATED
+        - generic [ref=e169]: action_id=f64ae632-d8bf-40bd-a816-e5 type=gitlab_rollback requires_approval=true
+      - listitem [ref=e170]:
+        - generic [ref=e171]: 12:16:06
+        - generic [ref=e172]: orchestrator
+        - generic [ref=e173]: ACTION_EXECUTED
+        - generic [ref=e174]: action_id=db7308d7-c308-48ac-92b6-26 issue_iid=10 web_url=https://gitlab.com/cybort3
+      - listitem [ref=e175]:
+        - generic [ref=e176]: 12:16:05
+        - generic [ref=e177]: orchestrator
+        - generic [ref=e178]: REASONING_COMPLETE
+        - generic [ref=e179]: recommendation=rollback confidence=0.92 correlated_deployment_id=1418631822
+      - listitem [ref=e180]:
+        - generic [ref=e181]: 12:16:05
+        - generic [ref=e182]: orchestrator
+        - generic [ref=e183]: ACTION_CREATED
+        - generic [ref=e184]: action_id=db7308d7-c308-48ac-92b6-26 type=gitlab_issue
+      - listitem [ref=e185]:
+        - generic [ref=e186]: 12:16:05
+        - generic [ref=e187]: orchestrator
+        - generic [ref=e188]: CONTEXT_ASSEMBLED
+        - generic [ref=e189]: deployments=1 service_id=checkout
+      - listitem [ref=e190]:
+        - generic [ref=e191]: 12:16:04
+        - generic [ref=e192]: orchestrator
+        - generic [ref=e193]: INCIDENT_DETECTED
+        - generic [ref=e194]: problem_id=DEMO-PROBLEM-1 title=Elevated error rate on che
+      - listitem [ref=e195]:
+        - generic [ref=e196]: 12:16:04
+        - generic [ref=e197]: orchestrator
+        - generic [ref=e198]: MISSION_STATUS_CHANGED
+        - generic [ref=e199]: from=pending to=planning
+      - listitem [ref=e200]:
+        - generic [ref=e201]: 12:16:04
+        - generic [ref=e202]: orchestrator
+        - generic [ref=e203]: MISSION_STATUS_CHANGED
+        - generic [ref=e204]: from=planning to=executing
+      - listitem [ref=e205]:
+        - generic [ref=e206]: 12:16:04
+        - generic [ref=e207]: orchestrator
+        - generic [ref=e208]: MISSION_CREATED
+        - generic [ref=e209]: goal=Investigate and resolve el
+      - listitem [ref=e210]:
+        - generic [ref=e211]: 12:16:04
+        - generic [ref=e212]: failure_engine
+        - generic [ref=e213]: DEMO_STARTED
+        - generic [ref=e214]: problem_id=DEMO-PROBLEM-1 service=checkout error_spike_pct=340
