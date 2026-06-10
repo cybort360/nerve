@@ -31,6 +31,7 @@ from failure_engine.injector import FailureEngine
 from notifications.telegram_bot import telegram_notifier
 from orchestrator.orchestrator import NERVEOrchestrator
 from orchestrator.planner import MissionPlanner, TaskDefinition
+from auth.dependencies import reject_unauthenticated_ws
 from auth.middleware import AuthMiddleware
 from routes import actions, auth, dashboard, demo, failure, missions, webhooks
 from state.database import ensure_indexes
@@ -228,6 +229,8 @@ async def mission_ws(websocket: WebSocket, mission_id: str) -> None:
         websocket: The client WebSocket.
         mission_id: Mission whose events the client wants to receive.
     """
+    if await reject_unauthenticated_ws(websocket):  # WS isn't gated by the HTTP middleware
+        return
     manager = app.state.ws_manager
     await manager.connect(mission_id, websocket)
     try:

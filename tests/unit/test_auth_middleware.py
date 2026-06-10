@@ -77,3 +77,34 @@ async def test_expired_token_is_gated():
     async with await _client(_app()) as c:
         c.cookies.set(COOKIE_NAME, create_access_token("u1", expires_minutes=-1))
         assert (await c.get("/missions/x")).status_code == 401
+
+
+# --- WebSocket auth (BaseHTTPMiddleware does NOT gate WS, so endpoints must) ---
+from auth.dependencies import WS_UNAUTHORIZED, reject_unauthenticated_ws  # noqa: E402
+
+
+class _FakeWS:
+    def __init__(self, cookie=None):
+        self.cookies = {COOKIE_NAME: cookie} if cookie else {}
+        self.closed_code = None
+
+    async def close(self, code=1000):
+        self.closed_code = code
+
+
+async def test_ws_rejected_without_cookie():
+    ws = _FakeWS()
+    assert await reject_unauthenticated_ws(ws) is True
+    assert ws.closed_code == WS_UNAUTHORIZED
+
+
+async def test_ws_rejected_with_invalid_cookie():
+    ws = _FakeWS("tampered-token")
+    assert await reject_unauthenticated_ws(ws) is True
+    assert ws.closed_code == WS_UNAUTHORIZED
+
+
+async def test_ws_allowed_with_valid_cookie():
+    ws = _FakeWS(create_access_token("u1"))
+    assert await reject_unauthenticated_ws(ws) is False
+    assert ws.closed_code is None
