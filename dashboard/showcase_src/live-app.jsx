@@ -59,6 +59,7 @@ function App() {
   const [metricSeries, setMetricSeries] = useState([]);
   const [metricMeta, setMetricMeta] = useState(null);
   const [fleetMissions, setFleetMissions] = useState([]);
+  const [goalText, setGoalText] = useState('');  // the real goal of the running mission
 
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
@@ -110,7 +111,7 @@ function App() {
     setPhase('Ready'); setStatus('pending'); setTargetRisk(6); riskRef.current = 6; setDispRisk(6);
     setActiveAgent(null); setActiveNode(null); setFireKey(0);
     setActions(0); setReplans(0); setApproval(null); setDone(false); setPhoneStatus('idle'); autoPhone.current = false;
-    setMemory([]); setMetricSeries([]); setMetricMeta(null);
+    setMemory([]); setMetricSeries([]); setMetricMeta(null); setGoalText('');
   }, []);
 
   /* ---- apply a full backend state snapshot ---- */
@@ -121,6 +122,7 @@ function App() {
       [...data.recent_events].reverse().forEach(ingestRaw);
     }
     const st = data.mission.status;
+    if (data.mission.goal) setGoalText(data.mission.goal);
     const resolved = L.isTerminal(st);
     const tasks = data.tasks || [];
     if (tasks.length) {
@@ -213,6 +215,7 @@ function App() {
   /* ---- launch a mission from the front door ---- */
   const launch = useCallback(async (presetId, text) => {
     const m = window.NERVE.MISSIONS[presetId];
+    if (m.launch !== 'demo' && text) setGoalText(text);  // show the user's goal immediately
     setStage('launching'); setPhase('Planning'); setActiveAgent('planner');
     try {
       const res = m.launch === 'demo' ? await L.Api.startDemo() : await L.Api.createMission(text, m.mission_type);
@@ -341,7 +344,9 @@ function App() {
           <div className="graph-head">
             <div className="goal-block">
               <div className="eyebrow">Mission · {preset.label}</div>
-              <div className="goal" dangerouslySetInnerHTML={{ __html: preset.goal }} />
+              {goalText
+                ? <div className="goal">{goalText}</div>
+                : <div className="goal" dangerouslySetInnerHTML={{ __html: preset.goal }} />}
             </div>
             <div className="phase-badge">
               <span className="pd" style={{ background: band, boxShadow: `0 0 8px ${band}` }} />{phase}
