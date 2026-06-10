@@ -33,16 +33,20 @@ MIN_TASKS = 2
 VALID_ROLES = ("planner", "execution", "risk", "auditor")
 
 _PROMPT_TEMPLATE = (
-    "You are nerve-planner, decomposing an operational goal into tasks.\n"
+    "You are nerve-planner, decomposing an operational goal into executable tasks.\n"
     "Respond with ONLY a JSON array. Each element is an object with keys: "
     "'description' (string), 'agent_role' (one of {roles}), 'depends_on' "
-    "(array of zero-based indices of earlier tasks), and — for research tasks — "
-    "'tool' and 'tool_args'.\n"
-    "The available tool is 'web_search' with tool_args {{\"query\": <string>}}. "
-    "For any task that requires finding information on the internet, set "
-    "agent_role to 'execution', tool to 'web_search', and put a focused search "
-    "query in tool_args.query. For non-tool tasks omit 'tool'.\n"
-    "Produce at least {min_tasks} tasks.\n\nGOAL: {goal}\nCONTEXT: {context}\n"
+    "(array of zero-based indices of earlier tasks), 'tool', and 'tool_args'.\n"
+    "The ONLY available tool is 'web_search' with tool_args {{\"query\": <string>}}. "
+    "EVERY task you emit MUST be an executable web_search task: set agent_role to "
+    "'execution', tool to 'web_search', and a focused search query in "
+    "tool_args.query.\n"
+    "Do NOT create analysis, consolidation, comparison, ranking, or summary tasks "
+    "and do NOT emit tasks without a tool — NERVE automatically synthesizes a final "
+    "ranked recommendation from the search results after the searches complete. "
+    "Decompose the goal into {min_tasks}+ distinct, non-overlapping web searches "
+    "(make them parallel with empty depends_on unless one search genuinely needs "
+    "another's result).\n\nGOAL: {goal}\nCONTEXT: {context}\n"
 )
 
 

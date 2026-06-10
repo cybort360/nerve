@@ -221,9 +221,15 @@ class NERVEOrchestrator:
         if not graph.is_complete():
             return
         all_completed = all(t.status == "completed" for t in state.tasks)
-        if all_completed and mission.mission_type == "GENERAL":
+        any_completed = any(t.status == "completed" for t in state.tasks)
+        # GENERAL research is resilient: synthesize a hand-off from whatever
+        # completed (a single stray failed task shouldn't suppress the result),
+        # and resolve the mission once it has produced a recommendation.
+        if mission.mission_type == "GENERAL" and any_completed:
             from modules.research_concierge.synthesis import synthesize_and_handoff  # lazy: avoids circular import
             await synthesize_and_handoff(mission.mission_id)
+            await self._set_status(mission, "resolved")
+            return
         await self._set_status(mission, "resolved" if all_completed else "failed")
 
     # ----------------------------------------------------------------- #
