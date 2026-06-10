@@ -355,7 +355,16 @@ class DemoScenario:
         self._engine.mission_id = mission_id
         orchestrator._failure_engine = self._engine
         dynatrace, gitlab, _, seeded_deployment = await build_seeded_clients(self._engine, mission_id)
-        orchestrator.execution_agent_factory = lambda mid: ExecutionAgent(mid, dynatrace, gitlab)
+        # The demo overrides the shared orchestrator's factory so the approved
+        # rollback runs against the seeded GitLab. Include a web_search client too,
+        # otherwise GENERAL research missions launched on this same instance after a
+        # demo would get an agent without web_search and fail with tool_unavailable.
+        from mcp_tools.web_search import WebSearchClient
+
+        engine = self._engine
+        orchestrator.execution_agent_factory = lambda mid: ExecutionAgent(
+            mid, dynatrace, gitlab, web_search=WebSearchClient(mission_id=mid, failure_engine=engine)
+        )
         await self._launch_workflow(orchestrator, dynatrace, gitlab, mission_id, seeded_deployment)
         await self._drive_timeline(mission_id)
 
