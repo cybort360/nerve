@@ -38,7 +38,7 @@ os.environ.setdefault("GITLAB_PROJECT_ID", "123")
 # need a flag on opt in explicitly via monkeypatch (see the `enabled` fixtures).
 os.environ["FAILURE_ENGINE_ENABLED"] = "false"
 os.environ["DEMO_MODE"] = "false"
-os.environ["JWT_SECRET"] = "test-secret-key-deterministic"
+os.environ["JWT_SECRET"] = "test-secret-key-deterministic-0123456789abcdef"
 
 import pytest  # noqa: E402
 from mongomock_motor import AsyncMongoMockClient  # noqa: E402

@@ -5,7 +5,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from auth.middleware import AuthMiddleware
+from auth.middleware import AuthMiddleware, _is_public
 from auth.tokens import COOKIE_NAME, create_access_token
 
 
@@ -59,3 +59,21 @@ async def test_valid_cookie_passes_gate():
     async with await _client(_app()) as c:
         c.cookies.set(COOKIE_NAME, create_access_token("u1"))
         assert (await c.get("/missions/x")).status_code == 200
+
+
+def test_is_public_is_boundary_safe():
+    assert _is_public("/showcase") is True
+    assert _is_public("/showcase/x") is True
+    assert _is_public("/health") is True
+    assert _is_public("/health/ready") is True
+    # look-alikes must NOT be public
+    assert _is_public("/showcase-evil") is False
+    assert _is_public("/healthcheck") is False
+    assert _is_public("/missions") is False
+    assert _is_public("/") is False
+
+
+async def test_expired_token_is_gated():
+    async with await _client(_app()) as c:
+        c.cookies.set(COOKIE_NAME, create_access_token("u1", expires_minutes=-1))
+        assert (await c.get("/missions/x")).status_code == 401
