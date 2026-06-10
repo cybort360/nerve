@@ -193,3 +193,39 @@ async def test_client_ignores_failures_when_disabled():
     engine = _engine_with(_scenario(FailureType.SERVICE_OUTAGE, "get_problems"))
     client = _dt_client(engine, {"problems": []})
     assert await client.get_active_problems() == []  # outage not applied
+
+
+# --------------------------------------------------------------------------- #
+# Demo scenario seeded reason function
+# --------------------------------------------------------------------------- #
+async def test_make_seeded_reason_uses_seeded_deployment_regardless_of_deployments_arg():
+    """_make_seeded_reason must return the seeded deployment even with an empty deployments list.
+
+    This is the regression guard for the bug where the demo's _seeded_reason used
+    ``deployments[0] if deployments else None``.  When GitLab is configured with a real
+    project that has no recent deployments, the workflow passes [] as the deployments
+    argument.  The old code then returned correlated_deployment=None, which caused
+    _enforce_no_deployment_rule to downgrade the recommendation from "rollback" to
+    "investigate", so no pending gitlab_rollback action was ever created.
+    """
+    from datetime import timedelta
+    from failure_engine.demo_scenario import _make_seeded_deployment, _make_seeded_reason
+
+    incident_start = datetime.utcnow() - timedelta(minutes=30)
+    seeded_deployment = _make_seeded_deployment(incident_start)
+    reason_fn = _make_seeded_reason(seeded_deployment)
+
+    # Case 1: empty list (real GitLab, no deployments in project)
+    result_empty = await reason_fn(None, None, [])
+    assert result_empty.correlated_deployment is seeded_deployment
+    assert result_empty.recommendation == "rollback"
+    assert result_empty.correlated_deployment.id == 42
+
+    # Case 2: non-empty list (seeded GitLab path)
+    from mcp_tools.gitlab import GitLabDeployment
+    other_deployment = GitLabDeployment(id=99, status="success", ref="hotfix", sha="deadbeef")
+    result_with_deployments = await reason_fn(None, None, [other_deployment])
+    # Must still return the SEEDED deployment, not the first item from the list.
+    assert result_with_deployments.correlated_deployment is seeded_deployment
+    assert result_with_deployments.correlated_deployment.id == 42
+    assert result_with_deployments.recommendation == "rollback"

@@ -34,6 +34,7 @@ from failure_engine.injector import FailureEngine, FailureScenario, FailureType
 from mcp_tools.dynatrace import DynatraceClient
 from mcp_tools.gitlab import (
     GitLabClient,
+    GitLabDeployment,
     TOOL_CLOSE_ISSUE,
     TOOL_CREATE_ISSUE,
     TOOL_CREATE_MR,
@@ -199,40 +200,92 @@ class _SeededGitLabClient(GitLabClient):
         return {}
 
 
-async def _seeded_reason(
-    problem: Any, metrics: Any, deployments: list
-) -> CorrelationResult:
-    """Seeded correlation: blame the recent deployment and recommend rollback."""
-    deployment = deployments[0] if deployments else None
-    return CorrelationResult(
-        correlated_deployment=deployment,
-        confidence=0.92,
-        reasoning=(
-            "Error rate spiked ~31 minutes after deployment 42 (payment_processor.py) "
-            "to production. Strong temporal correlation; recommend rollback."
-        ),
-        recommendation="rollback",
+def _make_seeded_deployment(incident_start: datetime) -> GitLabDeployment:
+    """Build the canonical seeded deployment for the demo scenario.
+
+    The deployment is always 31 minutes before the incident start, which places
+    it firmly inside the 24-hour lookback window while providing a clear temporal
+    correlation with the error-rate spike.
+
+    Args:
+        incident_start: The seeded incident start time (naive UTC).
+
+    Returns:
+        A :class:`~mcp_tools.gitlab.GitLabDeployment` for deployment #42.
+    """
+    deployed_at = incident_start - timedelta(minutes=31)
+    return GitLabDeployment(
+        id=42,
+        status="success",
+        ref="main",
+        sha="a1b2c3d4",
+        environment="production",
+        created_at=deployed_at,
     )
+
+
+def _make_seeded_reason(seeded_deployment: GitLabDeployment):
+    """Return a correlation function that always returns the seeded deployment.
+
+    The returned function ignores the ``deployments`` argument supplied by the
+    workflow.  This is intentional: when the demo runs against a *real* GitLab
+    project the project almost certainly has no deployments in the last 24 hours
+    that match the seeded checkout scenario.  If the workflow passes an empty
+    list (or real unrelated deployments) to the reason function, the plain
+    ``deployments[0] if deployments else None`` pattern would yield
+    ``correlated_deployment=None``, which causes
+    :meth:`~modules.incident_autopilot.workflow.IncidentAutopilotWorkflow._enforce_no_deployment_rule`
+    to downgrade the recommendation from ``"rollback"`` to ``"investigate"``
+    — preventing the pending rollback action from ever being created.
+
+    By closing over the pre-built :class:`~mcp_tools.gitlab.GitLabDeployment` we
+    guarantee that the seeded correlation result is always correct regardless of
+    what the (real or seeded) GitLab client returned.
+
+    Args:
+        seeded_deployment: The canonical seeded deployment for this demo run.
+
+    Returns:
+        An async correlation function compatible with :data:`~modules.incident_autopilot.workflow.ReasonFn`.
+    """
+    async def _seeded_reason(problem: Any, metrics: Any, deployments: list) -> CorrelationResult:
+        return CorrelationResult(
+            correlated_deployment=seeded_deployment,
+            confidence=0.92,
+            reasoning=(
+                "Error rate spiked ~31 minutes after deployment 42 (payment_processor.py) "
+                "to production. Strong temporal correlation; recommend rollback."
+            ),
+            recommendation="rollback",
+        )
+
+    return _seeded_reason
 
 
 async def build_seeded_clients(
     engine: FailureEngine, mission_id: str
-) -> tuple[DynatraceClient, GitLabClient, _DemoState]:
+) -> tuple[DynatraceClient, GitLabClient, _DemoState, GitLabDeployment]:
     """Build the demo's Dynatrace (always seeded) and GitLab clients.
 
     Dynatrace is always seeded (no live Dynatrace in the demo). GitLab is REAL
     when configured (creates real issues/MRs/pipelines in the demo project) and
     seeded otherwise, so the demo still runs fully offline.
 
+    The canonical seeded deployment is also returned so callers can pass it to
+    :func:`_make_seeded_reason`, ensuring the correlation result always references
+    the seeded deployment regardless of what the (real or seeded) GitLab client
+    actually returns from :meth:`~mcp_tools.gitlab.GitLabClient.list_recent_deployments`.
+
     Args:
         engine: Failure engine whose injections apply to the wrapped calls.
         mission_id: Mission to attribute MCP audit events to.
 
     Returns:
-        The Dynatrace client, the GitLab client, and the shared demo state.
+        A 4-tuple of (dynatrace_client, gitlab_client, demo_state, seeded_deployment).
     """
     demo_state = _DemoState()
     incident_start = datetime.utcnow() - timedelta(minutes=30)
+    seeded_deployment = _make_seeded_deployment(incident_start)
     dynatrace = DynatraceClient(mission_id=mission_id, failure_engine=engine, server_url="seeded://dynatrace")
     dynatrace._session = SeededMCPSession(demo_state, incident_start)
 
@@ -243,7 +296,7 @@ async def build_seeded_clients(
     else:
         gitlab = _SeededGitLabClient(demo_state, incident_start, mission_id=mission_id, failure_engine=engine)
         log.info("demo_using_seeded_gitlab")
-    return dynatrace, gitlab, demo_state
+    return dynatrace, gitlab, demo_state, seeded_deployment
 
 
 class DemoScenario:
@@ -288,9 +341,9 @@ class DemoScenario:
         self._engine = orchestrator._failure_engine or FailureEngine()
         self._engine.mission_id = mission_id
         orchestrator._failure_engine = self._engine
-        dynatrace, gitlab, _ = await build_seeded_clients(self._engine, mission_id)
+        dynatrace, gitlab, _, seeded_deployment = await build_seeded_clients(self._engine, mission_id)
         orchestrator.execution_agent_factory = lambda mid: ExecutionAgent(mid, dynatrace, gitlab)
-        await self._launch_workflow(orchestrator, dynatrace, gitlab, mission_id)
+        await self._launch_workflow(orchestrator, dynatrace, gitlab, mission_id, seeded_deployment)
         await self._drive_timeline(mission_id)
 
     async def prepare(self) -> str:
@@ -316,9 +369,24 @@ class DemoScenario:
         return mission.mission_id
 
     async def _launch_workflow(
-        self, orchestrator: Any, dynatrace: DynatraceClient, gitlab: GitLabClient, mission_id: str
+        self,
+        orchestrator: Any,
+        dynatrace: DynatraceClient,
+        gitlab: GitLabClient,
+        mission_id: str,
+        seeded_deployment: GitLabDeployment,
     ) -> None:
-        """Run the incident workflow (detection → issue → pending rollback)."""
+        """Run the incident workflow (detection → issue → pending rollback).
+
+        Args:
+            orchestrator: NERVE orchestrator used to store the workflow reference.
+            dynatrace: Dynatrace MCP client (always seeded in demo).
+            gitlab: GitLab client (seeded or real depending on configuration).
+            mission_id: Owning mission identifier.
+            seeded_deployment: The canonical seeded deployment; passed to the
+                reason function so it always returns a rollback recommendation
+                even when the real GitLab project has no recent deployments.
+        """
         resolver = IncidentResolver(
             dynatrace,
             gitlab,
@@ -328,7 +396,11 @@ class DemoScenario:
             max_checks=RESOLVER_MAX_CHECKS,
         )
         self._workflow = IncidentAutopilotWorkflow(
-            dynatrace, gitlab, reason=_seeded_reason, resolver=resolver, project_id=settings.gitlab_project_id
+            dynatrace,
+            gitlab,
+            reason=_make_seeded_reason(seeded_deployment),
+            resolver=resolver,
+            project_id=settings.gitlab_project_id,
         )
         # Keep the workflow (and its background resolver task) alive past run().
         orchestrator._demo_workflow = self._workflow
