@@ -238,7 +238,12 @@ class NERVEOrchestrator:
         try:
             tasks = await self._planner.plan(mission_id, mission.goal, mission.context)
         except PlanningFailedError as exc:
-            self._log.error("initial_planning_failed", mission_id=mission_id, error=str(exc))
+            self._log.error(
+                "initial_planning_failed",
+                mission_id=mission_id,
+                error=str(exc),
+                cause=getattr(exc, "context", None),
+            )
             await self._set_status(mission, "failed")
             return
         await db.add_tasks(tasks)
