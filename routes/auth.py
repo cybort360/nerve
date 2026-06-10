@@ -94,7 +94,7 @@ async def logout(response: Response) -> None:
     Args:
         response: FastAPI response object used to delete the session cookie.
     """
-    response.delete_cookie(COOKIE_NAME, path="/")
+    response.delete_cookie(COOKIE_NAME, path="/", secure=settings.cookie_secure, httponly=True, samesite="lax")
 
 
 @router.get("/me", response_model=UserResponse)

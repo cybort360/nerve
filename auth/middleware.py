@@ -20,7 +20,7 @@ log = structlog.get_logger()
 # Public path prefixes — reachable without a session.
 PUBLIC_PREFIXES = (
     "/auth", "/login", "/health", "/healthz", "/webhooks",
-    "/showcase", "/live-classic", "/favicon.ico", "/docs", "/openapi.json", "/redoc",
+    "/showcase", "/live-classic", "/favicon.ico",
 )
 
 

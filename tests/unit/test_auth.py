@@ -130,3 +130,10 @@ async def test_me_returns_current_user(mock_db):
     user = await db.get_user(out.user_id)
     me = await auth_routes.me(user)
     assert me.user_id == out.user_id and me.email == "a@b.com"
+
+
+async def test_login_unknown_email_returns_401(mock_db):
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.login(LoginRequest(email="ghost@nowhere.io", password="password1"), Response())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "invalid credentials"
