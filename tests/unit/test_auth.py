@@ -72,3 +72,61 @@ async def test_duplicate_email_rejected(mock_db):
 async def test_get_user_missing_returns_none(mock_db):
     assert await db.get_user_by_email("nobody@example.com") is None
     assert await db.get_user("does-not-exist") is None
+
+
+# ---------------------------------------------------------------------------
+# Route handler tests
+# ---------------------------------------------------------------------------
+from types import SimpleNamespace  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+from fastapi.responses import Response  # noqa: E402
+
+from auth.tokens import COOKIE_NAME, decode_token  # noqa: E402
+from routes import auth as auth_routes  # noqa: E402
+from routes.schemas import LoginRequest, SignupRequest  # noqa: E402
+
+
+async def test_signup_creates_user_and_sets_cookie(mock_db):
+    resp = Response()
+    out = await auth_routes.signup(SignupRequest(email="a@b.com", password="password1"), resp)
+    assert out.email == "a@b.com"
+    cookie_header = resp.headers.get("set-cookie", "")
+    assert COOKIE_NAME in cookie_header
+    token = cookie_header.split(COOKIE_NAME + "=")[1].split(";")[0]
+    assert decode_token(token) == out.user_id
+
+
+async def test_signup_duplicate_returns_409(mock_db):
+    await auth_routes.signup(SignupRequest(email="a@b.com", password="password1"), Response())
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.signup(SignupRequest(email="A@b.com", password="password1"), Response())
+    assert exc.value.status_code == 409
+
+
+async def test_signup_short_password_returns_400(mock_db):
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.signup(SignupRequest(email="a@b.com", password="short"), Response())
+    assert exc.value.status_code == 400
+
+
+async def test_signup_invalid_email_returns_400(mock_db):
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.signup(SignupRequest(email="not-an-email", password="password1"), Response())
+    assert exc.value.status_code == 400
+
+
+async def test_login_good_and_bad(mock_db):
+    await auth_routes.signup(SignupRequest(email="a@b.com", password="password1"), Response())
+    ok = await auth_routes.login(LoginRequest(email="a@b.com", password="password1"), Response())
+    assert ok.email == "a@b.com"
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.login(LoginRequest(email="a@b.com", password="wrong"), Response())
+    assert exc.value.status_code == 401
+
+
+async def test_me_returns_current_user(mock_db):
+    out = await auth_routes.signup(SignupRequest(email="a@b.com", password="password1"), Response())
+    user = await db.get_user(out.user_id)
+    me = await auth_routes.me(user)
+    assert me.user_id == out.user_id and me.email == "a@b.com"

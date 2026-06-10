@@ -23,6 +23,27 @@ from state.models import (
 )
 
 
+class SignupRequest(BaseModel):
+    """Body for POST /auth/signup."""
+
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=1)
+
+
+class LoginRequest(BaseModel):
+    """Body for POST /auth/login."""
+
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=1)
+
+
+class UserResponse(BaseModel):
+    """Public user view."""
+
+    user_id: str
+    email: str
+
+
 class CreateMissionRequest(BaseModel):
     """Body for ``POST /missions``."""
 
