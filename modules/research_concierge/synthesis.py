@@ -15,11 +15,20 @@ EVENT_RESEARCH_SYNTHESIZED = "RESEARCH_SYNTHESIZED"
 SOURCE_ORCH = "orchestrator"
 
 _PROMPT = (
-    "You are NERVE's research concierge. Given the goal and the raw findings "
-    "from web searches, write a concise recommendation (max 6 lines) naming the "
-    "best option(s) with prices and the exact links to proceed. Findings:\n"
-    "GOAL: {goal}\nFINDINGS:\n{findings}\n"
+    "You are NERVE's research concierge. Using ONLY the findings below, give a "
+    "DECISIVE recommendation for the goal.\n"
+    "Requirements:\n"
+    "- Commit to a clear #1 pick, plus 1-2 runners-up when relevant.\n"
+    "- For each, give concrete names, the price / key facts, and a DIRECT link "
+    "(use a real URL from the findings).\n"
+    "- Use markdown: **bold** the option names; write links as [text](url).\n"
+    "- Be concise (max ~8 lines). Do NOT hedge or ask for more data — choose the "
+    "best available options from the findings even if imperfect, and add at most "
+    "one short caveat line if needed.\n\n"
+    "GOAL: {goal}\n\nFINDINGS:\n{findings}\n"
 )
+MAX_RESULTS_PER_SEARCH = 4
+MAX_SNIPPET_CHARS = 220
 
 GenerateFn = Callable[[str], Awaitable[str]]
 
@@ -59,23 +68,26 @@ def _collect_findings(tasks: list[Task]) -> str:
     Prefers Tavily's synthesized ``answer``; falls back to the top result
     snippets so a recommendation is still produced when no answer is returned.
     """
-    lines: list[str] = []
+    blocks: list[str] = []
     for task in tasks:
         if task.status != "completed" or not isinstance(task.result, dict):
             continue
-        answer = task.result.get("answer")
+        result = task.result
+        lines = [f"SEARCH: {task.description}"]
+        answer = result.get("answer")
         if answer:
-            lines.append(f"- {task.description}: {answer}")
-            continue
-        results = task.result.get("results") or []
-        snippets = "; ".join(
-            f"{r.get('title', '')} ({r.get('url', '')})"
-            for r in results[:3]
-            if isinstance(r, dict)
-        )
-        if snippets:
-            lines.append(f"- {task.description}: {snippets}")
-    return "\n".join(lines)
+            lines.append(f"  summary: {answer}")
+        for item in (result.get("results") or [])[:MAX_RESULTS_PER_SEARCH]:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            url = (item.get("url") or "").strip()
+            content = (item.get("content") or "").strip()[:MAX_SNIPPET_CHARS]
+            if url or title:
+                lines.append(f"  - {title} | {url} | {content}")
+        if len(lines) > 1:  # has a summary or at least one result
+            blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
 
 
 async def _create_handoff(mission_id: str, recommendation: str) -> None:

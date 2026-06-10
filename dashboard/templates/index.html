@@ -540,6 +540,13 @@ body {
 .result-hint svg{width:12px;height:12px;}
 @keyframes resultIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 
+/* result modal buttons (match the approval dock; were falling back to browser defaults) */
+.result-actions .ac-btn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;height:40px;padding:0 20px;border-radius:var(--r-sm);cursor:pointer;border:1px solid;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;}
+.result-actions .ac-btn.reject{background:transparent;border-color:var(--line-2);color:var(--text-mid);}
+.result-actions .ac-btn.reject:hover{color:var(--alert);border-color:var(--alert-dim);background:var(--alert-dim);}
+.result-actions .ac-btn.approve{background:var(--nerve);border-color:var(--nerve);color:#04211c;font-weight:600;}
+.result-actions .ac-btn.approve:hover{box-shadow:0 0 22px -4px var(--nerve);}
+
 </style>
 </head>
 <body>
