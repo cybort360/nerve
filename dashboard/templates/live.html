@@ -1,1021 +1,2566 @@
 <!DOCTYPE html>
+<!-- NERVE — real-backend live dashboard — edit dashboard/showcase_src, regenerate with build.py. / is the scripted showcase. -->
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NERVE · Autonomous Operations Control</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='6' fill='%233fe0c5'/%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%233fe0c5' stroke-opacity='.4' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --void: #06080d;
-      --ink: #c4d0df;
-      --mute: #62718a;
-      --faint: #2f3a52;
-      --nerve: #3fe0c5;      /* brand / teal-mint */
-      --synapse: #9d8bff;    /* firing / agents */
-      --vital: #56e39f;      /* success */
-      --caution: #ffb454;    /* pending */
-      --alert: #ff5d72;      /* critical */
-      --hair: rgba(120,160,200,.12);
-      --hair-bright: rgba(120,180,210,.28);
-      --panel: rgba(15,20,30,.62);
-      --panel-solid: #0c1018;
-      --disp: "Chakra Petch", sans-serif;
-      --mono: "IBM Plex Mono", ui-monospace, monospace;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body {
-      background:
-        radial-gradient(1200px 700px at 78% -8%, rgba(63,224,197,.05), transparent 62%),
-        var(--void);
-      color: var(--ink); font-family: var(--mono); font-size: 13px; overflow: hidden;
-      -webkit-font-smoothing: antialiased; letter-spacing: .2px;
-    }
-    /* Ambient neural field + grain sit at the very back */
-    #neuralField { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .9; }
-    body::after {
-      content: ""; position: fixed; inset: 0; z-index: 9000; pointer-events: none; opacity: .035;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    }
-    ::selection { background: rgba(63,224,197,.28); color: #eafff9; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NERVE — Live Mission Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   NERVE — living nervous system
+   Calm, technical, alive. Motion does the talking.
+   ============================================================ */
 
-    #app { position: relative; z-index: 1; height: 100vh; display: grid;
-      grid-template-rows: 54px 88px minmax(0,1fr) 220px; grid-template-columns: minmax(0,1fr); }
+:root {
+  /* surfaces — deep near-black, faint cool cast */
+  --bg:        #06090b;
+  --bg-1:      #0a0e11;   /* raised panel */
+  --bg-2:      #0e1418;   /* inset / hover */
+  --bg-3:      #121a1f;
 
-    .eyebrow { font-family: var(--disp); font-weight: 600; font-size: 9.5px; letter-spacing: .4px;
-      color: var(--mute); text-transform: uppercase; }
-    .glow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mute); flex-shrink: 0; }
-    .glow-dot.on { background: var(--vital); box-shadow: 0 0 9px var(--vital); }
-    .glow-dot.off { background: var(--alert); box-shadow: 0 0 9px var(--alert); animation: flick 1s steps(2) infinite; }
-    @keyframes flick { 50% { opacity: .25; } }
+  /* lines */
+  --line:      rgba(120, 200, 190, 0.10);
+  --line-2:    rgba(120, 200, 190, 0.18);
+  --line-soft: rgba(255, 255, 255, 0.05);
 
-    /* ───────── Command bar ───────── */
-    header {
-      grid-row: 1; position: relative; z-index: 60; display: flex; align-items: center; gap: 22px;
-      padding: 0 22px; border-bottom: 1px solid var(--hair);
-      background: linear-gradient(180deg, rgba(10,14,21,.92), rgba(10,14,21,.66));
-      backdrop-filter: blur(10px);
-    }
-    .brand { display: flex; align-items: baseline; gap: 12px; }
-    .wordmark { position: relative; font-family: var(--disp); font-weight: 700; font-size: 21px;
-      letter-spacing: 2px; color: #eafdf8; padding-right: 2px; text-shadow: 0 0 16px rgba(63,224,197,.22); }
-    .brand .tag { font-family: var(--disp); font-size: 9px; letter-spacing: .5px; color: var(--mute); }
-    .brand .mark { width: 12px; height: 12px; border-radius: 50%; background: var(--nerve);
-      box-shadow: 0 0 10px var(--nerve); position: relative; align-self: center; }
-    .brand .mark::after { content: ""; position: absolute; inset: -5px; border-radius: 50%;
-      border: 1px solid var(--nerve); opacity: .5; animation: ring 2.4s ease-out infinite; }
-    @keyframes ring { 0% { transform: scale(.6); opacity: .7; } 100% { transform: scale(1.5); opacity: 0; } }
+  /* the cast */
+  --nerve:     #3fe0c5;   /* primary / signal / teal   */
+  --synapse:   #9d8bff;   /* violet / memory           */
+  --healthy:   #46d39a;   /* green                     */
+  --caution:   #f4c25a;   /* amber                     */
+  --alert:     #ff6a72;   /* coral                     */
 
-    .hdr-spacer { flex: 1; }
-    .hdr-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .hdr-id .k { color: var(--mute); font-size: 11px; }
-    #sbId { color: var(--nerve); font-size: 12px; }
-    #sbType { color: var(--ink); font-size: 11px; letter-spacing: 1px; }
-    .status-badge { font-family: var(--disp); font-weight: 600; font-size: 11px; letter-spacing: .5px;
-      padding: 4px 13px; border-radius: 2px; border: 1px solid currentColor; color: var(--mute);
-      background: rgba(0,0,0,.25); white-space: nowrap; }
-    .status-badge.planning, .status-badge.executing, .status-badge.replanning { color: var(--nerve); animation: bpulse 1.7s ease-in-out infinite; }
-    .status-badge.resolved { color: var(--vital); }
-    .status-badge.failed { color: var(--alert); }
-    @keyframes bpulse { 0%,100% { box-shadow: 0 0 0 rgba(63,224,197,0); } 50% { box-shadow: 0 0 16px rgba(63,224,197,.55); } }
+  --nerve-dim:   rgba(63, 224, 197, 0.16);
+  --synapse-dim: rgba(157, 139, 255, 0.16);
+  --alert-dim:   rgba(255, 106, 114, 0.16);
+  --caution-dim: rgba(244, 194, 90, 0.16);
 
-    .hdr-right { display: flex; align-items: center; gap: 18px; }
-    .conn { display: flex; align-items: center; gap: 7px; }
-    .conn-text { font-size: 9.5px; letter-spacing: .5px; color: var(--mute); }
-    .conn-text.linked { color: var(--vital); } .conn-text.down { color: var(--alert); }
+  /* text */
+  --text:      #dcebe8;
+  --text-mid:  #93a6a3;
+  --text-dim:  #5d6e6c;
+  --text-faint:#3a4745;
 
-    /* dropdown */
-    .dd { position: relative; }
-    .dd-btn { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 11px;
-      letter-spacing: .4px; background: rgba(255,255,255,.03); color: var(--ink); border: 1px solid var(--hair);
-      border-radius: 3px; padding: 7px 10px; max-width: 230px; cursor: pointer; outline: none;
-      transition: border-color .16s, box-shadow .16s, background .16s; }
-    .dd-btn:hover, .dd.open .dd-btn { border-color: var(--hair-bright); background: rgba(63,224,197,.06); }
-    .dd-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-    .dd-caret { color: var(--nerve); font-size: 9px; flex-shrink: 0; transition: transform .16s; }
-    .dd.open .dd-caret { transform: rotate(180deg); }
-    .dd-id { color: var(--nerve); opacity: .85; }
-    .dd-menu { position: absolute; top: calc(100% + 7px); right: 0; z-index: 200; margin: 0; padding: 5px;
-      min-width: 220px; max-width: 300px; max-height: 340px; overflow-y: auto; list-style: none;
-      background: rgba(10,14,21,.97); border: 1px solid var(--hair-bright); border-radius: 7px;
-      box-shadow: 0 18px 50px rgba(0,0,0,.6); backdrop-filter: blur(14px); }
-    .dd-item { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .3px; color: var(--ink);
-      padding: 8px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden;
-      text-overflow: ellipsis; transition: background .12s, color .12s; }
-    .dd-item:hover { background: rgba(63,224,197,.1); color: #eafff9; }
-    .dd-item.sel { background: rgba(63,224,197,.16); color: var(--nerve); }
-    .dd-item.sel::before { content: "▸ "; color: var(--nerve); }
-    .dd-item.placeholder { color: var(--mute); }
-    .dd-item.action { color: var(--nerve); border-top: 1px solid var(--hair); margin-top: 5px; padding-top: 9px; }
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --display: 'Chakra Petch', system-ui, sans-serif;
 
-    .btn { font-family: var(--disp); font-weight: 600; font-size: 11px; letter-spacing: .8px; cursor: pointer;
-      background: linear-gradient(180deg, rgba(63,224,197,.16), rgba(63,224,197,.05)); color: var(--nerve);
-      border: 1px solid var(--hair-bright); padding: 9px 16px; border-radius: 3px;
-      transition: box-shadow .18s, border-color .18s, transform .05s; white-space: nowrap; }
-    .btn:hover { box-shadow: 0 0 22px rgba(63,224,197,.32); border-color: var(--nerve); }
-    .btn:active { transform: translateY(1px); }
-    .btn:disabled { opacity: .5; cursor: wait; }
-    .btn.ghost { background: rgba(255,255,255,.02); color: var(--ink); }
+  --r: 10px;
+  --r-sm: 7px;
+}
 
-    /* ───────── Vitals strip ───────── */
-    .vitals { grid-row: 2; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)) 2.1fr;
-      gap: 12px; padding: 12px 18px; }
-    .vcard { position: relative; background: var(--panel); border: 1px solid var(--hair); border-radius: 7px;
-      padding: 11px 14px; display: flex; flex-direction: column; justify-content: center; gap: 6px;
-      overflow: hidden; backdrop-filter: blur(8px); animation: rise .6s both; }
-    .vcard .vlabel { display: flex; align-items: center; gap: 7px; }
-    .vcard .vval { font-family: var(--disp); font-weight: 700; font-size: 22px; line-height: 1; color: var(--ink); }
-    .vcard .vsub { font-size: 10px; color: var(--mute); }
-    #vStatusVal.s-resolved { color: var(--vital); } #vStatusVal.s-failed { color: var(--alert); }
-    #vStatusVal.s-planning, #vStatusVal.s-executing, #vStatusVal.s-replanning { color: var(--nerve); }
-    .progress { height: 4px; background: rgba(120,160,200,.12); border-radius: 3px; overflow: hidden; margin-top: 2px; }
-    .progress > i { display: block; height: 100%; width: 0; background: var(--nerve); box-shadow: 0 0 8px var(--nerve); transition: width .6s cubic-bezier(.4,0,.2,1); }
+* { box-sizing: border-box; }
 
-    /* ECG card */
-    .ecg { grid-column: span 1; padding: 0; }
-    .ecg .ecg-top { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 0; }
-    .ecg svg { display: block; width: 100%; height: 46px; }
-    .ecg .ecg-line { fill: none; stroke: var(--mute); stroke-width: 1.6; transition: stroke .5s; }
-    .ecg-track { animation: ecgScroll 5s linear infinite; }
-    @keyframes ecgScroll { to { transform: translateX(-240px); } }
-    .pulse-active .ecg-line { stroke: var(--nerve); filter: drop-shadow(0 0 4px var(--nerve)); }
-    .pulse-active .ecg-track { animation-duration: 2.1s; }
-    .pulse-critical .ecg-line { stroke: var(--alert); filter: drop-shadow(0 0 5px var(--alert)); }
-    .pulse-critical .ecg-track { animation-duration: 1.1s; }
-    .pulse-ok .ecg-line { stroke: var(--vital); filter: drop-shadow(0 0 3px var(--vital)); }
-    .ecg-fade { position: absolute; top: 0; right: 0; bottom: 0; width: 60px; pointer-events: none;
-      background: linear-gradient(90deg, transparent, var(--void)); opacity: .5; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--display);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
 
-    /* ───────── Main grid ───────── */
-    main { grid-row: 3; display: grid; grid-template-columns: minmax(0,1fr) 372px; gap: 14px;
-      padding: 0 18px; min-height: 0; min-width: 0; }
-    .panel { position: relative; background: var(--panel); border: 1px solid var(--hair); border-radius: 9px;
-      display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden;
-      backdrop-filter: blur(8px); animation: rise .6s both; }
-    .panel-head { display: flex; align-items: center; gap: 10px; padding: 11px 15px; border-bottom: 1px solid var(--hair);
-      font-family: var(--disp); font-weight: 600; font-size: 10.5px; letter-spacing: .6px; color: var(--ink);
-      text-transform: uppercase; }
-    .panel-head .ph-accent { width: 6px; height: 6px; border-radius: 50%; background: var(--nerve); box-shadow: 0 0 8px var(--nerve); }
-    .panel-head .spacer { flex: 1; }
-    .chip { font-family: var(--mono); font-size: 10px; background: rgba(63,224,197,.1); color: var(--nerve);
-      border: 1px solid var(--hair); border-radius: 20px; padding: 1px 9px; }
-    .rise-1 { animation-delay: .05s; } .rise-2 { animation-delay: .12s; } .rise-3 { animation-delay: .19s; } .rise-4 { animation-delay: .26s; }
-    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+body {
+  background:
+    radial-gradient(1100px 700px at 70% -10%, rgba(63,224,197,0.045), transparent 60%),
+    radial-gradient(900px 600px at 8% 110%, rgba(157,139,255,0.04), transparent 60%),
+    var(--bg);
+}
 
-    /* Synaptic mission map */
-    #graphPanel { overflow: hidden; }
-    #graphWrap { position: relative; flex: 1; min-height: 0; }
-    #synapse { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .graph-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 16px; color: var(--mute); text-align: center; }
-    .graph-empty .core { width: 56px; height: 56px; border-radius: 50%;
-      background: radial-gradient(circle at 50% 40%, rgba(63,224,197,.5), rgba(63,224,197,.05) 70%);
-      border: 1px solid var(--hair-bright); animation: breathe 3.4s ease-in-out infinite; }
-    @keyframes breathe { 0%,100% { transform: scale(.92); opacity: .6; } 50% { transform: scale(1.06); opacity: 1; } }
-    .graph-empty .cap { font-family: var(--disp); font-size: 11px; letter-spacing: 1px; }
-    .graph-legend { display: flex; gap: 16px; padding: 9px 15px; border-top: 1px solid var(--hair); flex-wrap: wrap; }
-    .lg { display: flex; align-items: center; gap: 6px; font-size: 9.5px; letter-spacing: 1px; color: var(--mute); }
-    .lg i { width: 8px; height: 8px; border-radius: 50%; }
-    /* svg neuron + edge styling */
-    .edge { fill: none; stroke: rgba(120,160,200,.16); stroke-width: 1.4; }
-    .edge.hot { stroke: rgba(63,224,197,.3); }
-    .pulse { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 220;
-      animation: flow 2.2s linear infinite; opacity: .9; }
-    @keyframes flow { from { stroke-dashoffset: 225; } to { stroke-dashoffset: 0; } }
-    .neuron { cursor: default; }
-    .neuron .halo { transition: opacity .4s; }
-    .neuron .body { transition: fill .4s, stroke .4s; }
-    .neuron .nid { font-family: var(--disp); font-weight: 700; font-size: 12px; fill: #06080d; text-anchor: middle; }
-    .neuron .nrole { font-family: var(--disp); font-size: 6.5px; letter-spacing: .5px; fill: rgba(255,255,255,.85); text-anchor: middle; }
-    .neuron.breathe { animation: nbreathe 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-    @keyframes nbreathe { 0%,100% { opacity: .85; } 50% { opacity: 1; } }
-    .neuron.active .body { animation: nactive 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-    @keyframes nactive { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
-    .neuron.fire .halo { opacity: 1 !important; animation: nfire .7s ease-out; }
-    @keyframes nfire { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(2.1); opacity: 0; } }
-    #graphTip { position: absolute; z-index: 30; pointer-events: none; max-width: 280px; opacity: 0;
-      transform: translateY(4px); transition: opacity .12s, transform .12s;
-      background: rgba(8,11,18,.97); border: 1px solid var(--hair-bright); border-radius: 6px; padding: 8px 10px;
-      font-size: 11px; line-height: 1.45; color: var(--ink); box-shadow: 0 10px 30px rgba(0,0,0,.6); }
-    #graphTip.show { opacity: 1; transform: none; }
-    #graphTip .tt { font-family: var(--disp); letter-spacing: 1px; color: var(--nerve); font-size: 10px; }
+#root { height: 100%; }
 
-    /* Right telemetry column */
-    .rail { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-    .rail .panel { flex: 0 0 auto; }
-    #riskPanel { }
-    .risk-body { padding: 14px 14px 16px; display: flex; flex-direction: column; align-items: center; }
-    .gauge-wrap { position: relative; width: 168px; height: 168px; }
-    .gauge-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    #riskArc { transition: stroke-dashoffset .8s cubic-bezier(.4,0,.2,1), stroke .5s; }
-    #riskDot { transition: cx .8s cubic-bezier(.4,0,.2,1), cy .8s cubic-bezier(.4,0,.2,1), fill .5s; }
-    .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    #riskNum { font-family: var(--disp); font-weight: 700; font-size: 40px; line-height: 1; color: var(--mute); text-shadow: 0 0 18px currentColor; }
-    #riskLabel { font-family: var(--disp); font-size: 9px; letter-spacing: 1px; color: var(--mute); margin-top: 4px; }
-    #riskBreakdown { width: 100%; margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
-    .bk { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--mute); }
-    .bk .bk-k { width: 78px; text-transform: uppercase; letter-spacing: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bk .bk-bar { flex: 1; height: 5px; background: rgba(120,160,200,.12); border-radius: 3px; overflow: hidden; }
-    .bk .bk-fill { height: 100%; background: var(--nerve); border-radius: 3px; transition: width .6s; }
-    .bk .bk-v { width: 30px; text-align: right; color: var(--ink); }
+::selection { background: var(--nerve-dim); color: var(--text); }
 
-    #approvalsCard.has-items { border-color: rgba(255,180,84,.45); box-shadow: 0 0 0 1px rgba(255,180,84,.12), 0 0 26px rgba(255,180,84,.14); animation: aglow 2s ease-in-out infinite; }
-    @keyframes aglow { 50% { box-shadow: 0 0 0 1px rgba(255,180,84,.2), 0 0 34px rgba(255,180,84,.28); } }
-    #approvalsCard.has-items .panel-head, #approvalsCard.has-items .ph-accent { color: var(--caution); }
-    #approvalsCard.has-items .ph-accent { background: var(--caution); box-shadow: 0 0 8px var(--caution); }
-    .approvals-list { padding: 11px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; max-height: 38vh; }
-    .approval { border: 1px solid rgba(255,180,84,.34); border-radius: 7px; padding: 11px; background: rgba(255,180,84,.05); }
-    .approval .atype { font-family: var(--disp); font-weight: 600; font-size: 10px; letter-spacing: .5px; color: var(--caution); text-transform: uppercase; }
-    .approval .aid { color: var(--mute); font-size: 10px; margin-left: 7px; }
-    .approval .adesc { color: var(--ink); margin: 7px 0 10px; line-height: 1.45; font-size: 11.5px; }
-    .approval .btnrow { display: flex; gap: 8px; }
-    .mini-btn { flex: 1; font-family: var(--disp); font-weight: 600; font-size: 10.5px; letter-spacing: 1px; padding: 8px;
-      border-radius: 4px; cursor: pointer; background: transparent; transition: box-shadow .15s, background .15s; }
-    .mini-btn.approve { color: var(--vital); border: 1px solid rgba(86,227,159,.5); }
-    .mini-btn.approve:hover { box-shadow: 0 0 16px rgba(86,227,159,.4); background: rgba(86,227,159,.08); }
-    .mini-btn.reject { color: var(--alert); border: 1px solid rgba(255,93,114,.5); }
-    .mini-btn.reject:hover { box-shadow: 0 0 16px rgba(255,93,114,.4); background: rgba(255,93,114,.08); }
-    .empty { color: var(--mute); font-size: 11px; padding: 13px 15px; }
+/* scrollbars */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }
+::-webkit-scrollbar-track { background: transparent; }
 
-    #failuresCard.has-items { border-color: rgba(255,93,114,.45); }
-    #failuresCard.has-items .panel-head, #failuresCard.has-items .ph-accent { color: var(--alert); }
-    #failuresCard.has-items .ph-accent { background: var(--alert); box-shadow: 0 0 8px var(--alert); }
-    .failures-list { padding: 11px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 26vh; }
-    .failure { border: 1px solid rgba(255,93,114,.32); border-radius: 7px; padding: 8px 10px; background: rgba(255,93,114,.05); }
-    .failure .frow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .failure .ftype { font-family: var(--disp); font-weight: 600; font-size: 10px; letter-spacing: 1px; color: var(--alert); text-transform: uppercase; }
-    .failure .ftarget { color: var(--mute); font-size: 10px; }
-    .sev-bar { height: 4px; background: rgba(255,93,114,.16); border-radius: 2px; margin-top: 7px; overflow: hidden; }
-    .sev-fill { height: 100%; background: var(--alert); box-shadow: 0 0 8px var(--alert); }
+.mono { font-family: var(--mono); }
+.tnum { font-variant-numeric: tabular-nums; }
 
-    /* ───────── Activity feed (bottom) ───────── */
-    #feedPanel { grid-row: 4; margin: 0 18px 16px; }
-    .feed { flex: 1; overflow-y: auto; padding: 6px 14px 10px; }
-    .feed-row { display: flex; gap: 13px; align-items: baseline; padding: 3px 0; line-height: 1.5;
-      border-bottom: 1px solid rgba(120,160,200,.05); white-space: nowrap; }
-    .feed-row .ts { color: var(--faint); flex-shrink: 0; font-size: 11px; }
-    .feed-row .src { flex-shrink: 0; width: 124px; overflow: hidden; text-overflow: ellipsis; }
-    .src-pill { font-family: var(--disp); font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase;
-      padding: 1px 7px; border-radius: 20px; border: 1px solid currentColor; opacity: .85; }
-    .feed-row .evt { font-weight: 600; flex-shrink: 0; font-size: 11.5px; }
-    .feed-row .pl { color: var(--mute); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; font-size: 11px; }
-    .feed-row.feed-new { animation: fnew .6s ease-out; }
-    @keyframes fnew { 0% { transform: translateX(-10px); opacity: 0; background: rgba(63,224,197,.16); }
-      100% { transform: none; opacity: 1; background: transparent; } }
-    .feed .feed-row:first-child .evt::after { content: " ▌"; color: var(--nerve); animation: caret 1.1s steps(1) infinite; }
-    @keyframes caret { 50% { opacity: 0; } }
-    .ev-nerve { color: var(--nerve); } .ev-vital { color: var(--vital); } .ev-alert { color: var(--alert); }
-    .ev-caution { color: var(--caution); } .ev-synapse { color: var(--synapse); } .ev-dim { color: var(--mute); }
+/* tiny uppercase label */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+}
 
-    /* ───────── Launch ───────── */
-    #launchView { grid-row: 1 / -1; display: flex; align-items: center; justify-content: center; padding: 24px 16px; overflow-y: auto; }
-    .launch-box { width: 560px; max-width: 94vw; background: rgba(12,16,24,.86); border: 1px solid var(--hair-bright);
-      border-radius: 12px; padding: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.55); backdrop-filter: blur(14px); animation: rise .6s both; }
-    .launch-box .lhead { display: flex; align-items: center; gap: 13px; margin-bottom: 6px; }
-    .launch-box .lcore { width: 34px; height: 34px; border-radius: 50%;
-      background: radial-gradient(circle at 50% 40%, rgba(63,224,197,.7), rgba(63,224,197,.04) 72%);
-      border: 1px solid var(--hair-bright); animation: breathe 3s ease-in-out infinite; flex-shrink: 0; }
-    .launch-box h1 { font-family: var(--disp); font-weight: 700; font-size: 19px; letter-spacing: 1px; color: #eafdf8; margin: 0; }
-    .launch-box p.sub { color: var(--mute); margin: 0 0 22px; font-size: 12px; line-height: 1.5; }
-    .field-label { font-family: var(--disp); font-weight: 600; font-size: 9px; letter-spacing: .5px; color: var(--mute); margin-bottom: 6px; text-transform: uppercase; }
-    .inp { width: 100%; background: rgba(255,255,255,.03); border: 1px solid var(--hair); border-radius: 6px; color: #eafff9;
-      font-family: var(--mono); font-size: 13px; padding: 12px 13px; outline: none; margin-bottom: 16px; transition: border-color .16s, box-shadow .16s; }
-    .inp::placeholder { color: var(--faint); }
-    .inp:focus { border-color: var(--nerve); box-shadow: 0 0 0 3px rgba(63,224,197,.1); }
-    .btn-wide { width: 100%; justify-content: center; padding: 12px; }
-    .divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--faint); font-size: 10px; letter-spacing: .5px; }
-    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
-    .row { display: flex; gap: 10px; }
-    #launchMsg { margin: 16px 0 0; font-size: 12px; min-height: 16px; }
-    .launch-foot { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; }
-    .lstat { font-size: 9.5px; letter-spacing: .5px; color: var(--faint); }
-    .lstat b { color: var(--mute); font-weight: 600; }
+/* ---- app frame ---- */
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
 
-    .hidden { display: none !important; }
-    ::-webkit-scrollbar { width: 9px; height: 9px; }
-    ::-webkit-scrollbar-thumb { background: rgba(63,224,197,.22); border-radius: 6px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(63,224,197,.4); }
-    ::-webkit-scrollbar-track { background: transparent; }
+/* ===== header ===== */
+.hdr {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 22px;
+  height: 60px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent);
+  position: relative;
+  z-index: 20;
+}
 
-    /* ───────── Responsive ───────── */
-    @media (max-width: 1240px) { main { grid-template-columns: minmax(0,1fr) 330px; } .vitals { grid-template-columns: repeat(4, minmax(0,1fr)); } .ecg { display: none; } }
-    @media (max-width: 980px) {
-      body { overflow-y: auto; overflow-x: hidden; }
-      #app { height: auto; min-height: 100dvh; grid-template-rows: auto auto auto auto; }
-      .vitals { grid-template-columns: repeat(2, minmax(0,1fr)); }
-      main { grid-template-columns: minmax(0,1fr); }
-      #graphWrap { height: 52vh; min-height: 320px; }
-      #feedPanel { height: 40vh; min-height: 240px; }
-      .approvals-list { max-height: 46vh; } .failures-list { max-height: 30vh; }
-      header { flex-wrap: wrap; padding: 10px 16px; row-gap: 9px; height: auto; }
-      .hdr-id { order: 3; flex-basis: 100%; flex-wrap: wrap; row-gap: 7px; }
-      .hdr-right { margin-left: auto; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
-    }
-    @media (max-width: 600px) {
-      .vitals { grid-template-columns: 1fr 1fr; padding: 10px; gap: 9px; }
-      main { padding: 0 10px; } #feedPanel { margin: 0 10px 12px; }
-      .wordmark { font-size: 17px; letter-spacing: 1.5px; }
-      .brand .tag { display: none; }
-      .dd-btn { max-width: 150px; }
-      .feed-row { flex-wrap: wrap; gap: 8px; } .feed-row .src { width: 96px; }
-      .gauge-wrap { width: 150px; height: 150px; }
-    }
-    @media (pointer: coarse) { .mini-btn { padding: 12px; } .btn { padding: 12px 16px; } .dd-item { padding: 11px 12px; } }
-    @media (prefers-reduced-motion: reduce) {
-      *, body::after { animation: none !important; transition: none !important; }
-    }
-  </style>
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  user-select: none;
+}
+.wordmark .mark { width: 26px; height: 26px; display: block; }
+.wordmark .name {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: 0.34em;
+  padding-left: 2px;
+  color: var(--text);
+}
+.wordmark .name b { color: var(--nerve); font-weight: 600; }
+
+/* mission switcher */
+.switcher { display: flex; gap: 4px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r); padding: 4px; }
+.switcher button {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-mid);
+  background: transparent;
+  border: 0;
+  padding: 7px 14px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: color .2s, background .2s;
+  white-space: nowrap;
+}
+.switcher button .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); transition: background .2s, box-shadow .2s; }
+.switcher button:hover { color: var(--text); }
+.switcher button[data-on="true"] { background: var(--bg-3); color: var(--text); }
+.switcher button[data-on="true"] .dot { background: var(--nerve); box-shadow: 0 0 8px var(--nerve); }
+
+.hdr-spacer { flex: 1; }
+
+/* header status chips */
+.hdr-status { display: flex; align-items: center; gap: 18px; }
+.statchip { display: flex; flex-direction: column; gap: 2px; min-width: 64px; }
+.statchip .k { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); }
+.statchip .v { font-family: var(--mono); font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
+.statchip .v.alert { color: var(--alert); }
+.statchip .v.caution { color: var(--caution); }
+.statchip .v.ok { color: var(--healthy); }
+
+/* control buttons */
+.ctrls { display: flex; gap: 8px; }
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-mid);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  height: 34px;
+  padding: 0 13px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: all .16s;
+  white-space: nowrap;
+}
+.btn:hover { color: var(--text); border-color: var(--line-2); background: var(--bg-2); }
+.btn svg { width: 13px; height: 13px; }
+.btn.chaos { color: var(--caution); border-color: var(--caution-dim); }
+.btn.chaos:hover { background: var(--caution-dim); color: var(--caution); }
+.btn.chaos:disabled { opacity: 0.32; cursor: not-allowed; }
+.btn.primary { color: var(--nerve); border-color: var(--nerve-dim); }
+.btn.primary:hover { background: var(--nerve-dim); }
+
+/* ===== body grid ===== */
+.body {
+  display: grid;
+  grid-template-columns: 272px 1fr 384px;
+  min-height: 0;
+  height: 100%;
+}
+.col { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.col.left   { border-right: 1px solid var(--line); overflow-y: auto; }
+.col.right  { border-left: 1px solid var(--line); }
+.col.center { position: relative; }
+
+/* panel block inside a column */
+.panel { border-bottom: 1px solid var(--line); padding: 18px 18px 20px; }
+.panel:last-child { border-bottom: 0; }
+.panel-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.panel-hd .ttl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-mid); }
+
+/* ===== vitals ===== */
+.ecg-wrap { position: relative; border-radius: var(--r-sm); overflow: hidden; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
+.ecg-canvas { display: block; width: 100%; height: 96px; }
+.ecg-readout { position: absolute; top: 9px; left: 11px; display: flex; align-items: baseline; gap: 7px; pointer-events: none; }
+.ecg-readout .big { font-family: var(--display); font-weight: 600; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.ecg-readout .unit { font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; }
+.ecg-band { position: absolute; bottom: 8px; left: 11px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; }
+.ecg-bpm { position: absolute; bottom: 8px; right: 11px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+
+/* confidence bar */
+.meter { margin-top: 16px; }
+.meter-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+.meter-row .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); }
+.meter-row .val { font-family: var(--mono); font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+.meter-track { height: 5px; border-radius: 99px; background: var(--bg-3); overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 99px; transition: width .5s cubic-bezier(.4,0,.2,1), background .5s; }
+
+/* agent hub */
+.hub-wrap { display: flex; flex-direction: column; align-items: center; }
+.hub-svg { width: 100%; height: 188px; display: block; }
+.agent-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; width: 100%; margin-top: 6px; }
+.agent-row { display: flex; align-items: center; gap: 8px; }
+.agent-row .ad { width: 7px; height: 7px; border-radius: 50%; flex: none; transition: box-shadow .25s; }
+.agent-row .an { font-family: var(--mono); font-size: 10.5px; color: var(--text-mid); letter-spacing: 0.04em; }
+.agent-row .as { margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.1em; }
+.agent-row[data-active="true"] .an { color: var(--text); }
+
+/* ===== mission graph ===== */
+.graph-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px 0; }
+.goal-block { max-width: 70%; }
+.goal-block .eyebrow { margin-bottom: 7px; }
+.goal-block .goal { font-family: var(--display); font-weight: 500; font-size: 19px; line-height: 1.35; color: var(--text); letter-spacing: 0.01em; }
+.goal-block .goal .hl { color: var(--nerve); }
+.phase-badge { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-mid); border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; white-space: nowrap; }
+.phase-badge .pd { width: 7px; height: 7px; border-radius: 50%; background: var(--nerve); box-shadow: 0 0 8px var(--nerve); }
+
+.graph-stage { position: relative; flex: 1; min-height: 0; margin: 8px 0 0; }
+.graph-region { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* graph node card (HTML overlay positioned absolutely) */
+.gnode {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 158px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 9px 11px 10px;
+  transition: border-color .35s, background .35s, opacity .45s, box-shadow .45s, transform .35s;
+  cursor: default;
+  animation: node-appear .42s ease;
+}
+@keyframes node-appear { from { opacity: 0; } to { opacity: 1; } }
+.gnode .gn-top { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.gnode .gn-ic { width: 15px; height: 15px; flex: none; color: var(--text-dim); transition: color .3s; }
+.gnode .gn-agent { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); margin-left: auto; }
+.gnode .gn-label { font-family: var(--display); font-size: 12.5px; line-height: 1.28; color: var(--text-mid); font-weight: 500; transition: color .3s; }
+.gnode .gn-status { margin-top: 7px; height: 2px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.gnode .gn-status i { display: block; height: 100%; width: 0%; background: var(--nerve); transition: width .5s linear; }
+
+.gnode[data-state="pending"] { opacity: 0.5; }
+.gnode[data-state="active"] { border-color: var(--nerve); background: var(--bg-2); box-shadow: 0 0 0 1px var(--nerve-dim), 0 0 28px -6px var(--nerve); }
+.gnode[data-state="active"] .gn-ic { color: var(--nerve); }
+.gnode[data-state="active"] .gn-label { color: var(--text); }
+.gnode[data-state="active"] .gn-status i { width: 60%; animation: gn-load 2.4s linear infinite; }
+.gnode[data-state="done"] { border-color: var(--line-2); }
+.gnode[data-state="done"] .gn-ic { color: var(--healthy); }
+.gnode[data-state="done"] .gn-label { color: var(--text-mid); }
+.gnode[data-state="done"] .gn-status i { width: 100%; background: var(--healthy); }
+.gnode[data-state="approval"] { border-color: var(--caution); background: var(--bg-2); box-shadow: 0 0 0 1px var(--caution-dim), 0 0 30px -6px var(--caution); }
+.gnode[data-state="approval"] .gn-ic { color: var(--caution); }
+.gnode[data-state="approval"] .gn-label { color: var(--text); }
+.gnode[data-state="approval"] .gn-status i { width: 100%; background: var(--caution); animation: gn-pulse 1.3s ease-in-out infinite; }
+.gnode[data-state="alert"] { border-color: var(--alert); background: var(--bg-2); box-shadow: 0 0 0 1px var(--alert-dim), 0 0 30px -6px var(--alert); }
+.gnode[data-state="alert"] .gn-ic { color: var(--alert); }
+.gnode[data-state="alert"] .gn-label { color: var(--text); }
+.gnode[data-state="alert"] .gn-status i { width: 100%; background: var(--alert); animation: gn-pulse 1s ease-in-out infinite; }
+.gnode.chaos-born { animation: chaos-pop .5s cubic-bezier(.2,1.3,.4,1) both; }
+
+@keyframes gn-load { 0%{transform:translateX(-100%)} 100%{transform:translateX(220%)} }
+@keyframes gn-pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+@keyframes chaos-pop { 0%{opacity:0; transform:translate(-50%,-50%) scale(.7)} 100%{opacity:1; transform:translate(-50%,-50%) scale(1)} }
+
+/* ===== event feed ===== */
+.feed { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 0 32px; }
+.feed-empty { padding: 40px 22px; color: var(--text-dim); font-family: var(--mono); font-size: 12px; text-align: center; }
+.evt { display: grid; grid-template-columns: 14px 1fr; gap: 12px; padding: 9px 20px 9px 18px; animation: evt-in .4s cubic-bezier(.2,.8,.3,1) both; position: relative; }
+.evt-rail { position: relative; }
+.evt-rail .line { position: absolute; left: 6px; top: -9px; bottom: -9px; width: 1px; background: var(--line); }
+.evt-rail .dot { position: absolute; left: 3px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); border: 2px solid var(--bg); z-index: 1; }
+.evt:first-child .evt-rail .line { top: 9px; }
+.evt-body { min-width: 0; }
+.evt-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.evt-agent { font-family: var(--mono); font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; }
+.evt-time { font-family: var(--mono); font-size: 9px; color: var(--text-faint); margin-left: auto; font-variant-numeric: tabular-nums; }
+.evt-text { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--text-mid); }
+.evt-text .em { color: var(--text); }
+.evt-text .num { color: var(--nerve); }
+.evt-text .bad { color: var(--alert); }
+.evt-text .good { color: var(--healthy); }
+.evt-tool { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; background: var(--bg-1); }
+.evt-tool .tg { width: 5px; height: 5px; border-radius: 50%; background: var(--synapse); }
+
+.evt[data-kind="alert"] .evt-rail .dot { background: var(--alert); box-shadow: 0 0 9px var(--alert); }
+.evt[data-kind="risk"] .evt-rail .dot { background: var(--caution); box-shadow: 0 0 9px var(--caution); }
+.evt[data-kind="approval"] .evt-rail .dot { background: var(--caution); box-shadow: 0 0 10px var(--caution); }
+.evt[data-kind="success"] .evt-rail .dot { background: var(--healthy); box-shadow: 0 0 9px var(--healthy); }
+.evt[data-kind="signal"] .evt-rail .dot { background: var(--nerve); box-shadow: 0 0 9px var(--nerve); }
+.evt[data-kind="memory"] .evt-rail .dot { background: var(--synapse); box-shadow: 0 0 9px var(--synapse); }
+
+@keyframes evt-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+/* ===== approval ===== */
+.approval-dock { padding: 16px; border-top: 1px solid var(--caution-dim); background: linear-gradient(180deg, var(--caution-dim), transparent 60%); animation: dock-in .45s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes dock-in { from { opacity:0; transform: translateY(12px);} to {opacity:1; transform:none;} }
+.appcard { }
+.appcard .ac-top { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+.appcard .ac-badge { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--caution); display: flex; align-items: center; gap: 7px; }
+.appcard .ac-badge .ping { width: 8px; height: 8px; border-radius: 50%; background: var(--caution); box-shadow: 0 0 10px var(--caution); animation: gn-pulse 1.1s ease-in-out infinite; }
+.appcard .ac-title { font-family: var(--display); font-weight: 600; font-size: 16px; color: var(--text); margin: 0 0 4px; line-height: 1.3; }
+.appcard .ac-detail { font-family: var(--mono); font-size: 11.5px; line-height: 1.55; color: var(--text-mid); margin-bottom: 12px; }
+.appcard .ac-detail .num { color: var(--nerve); }
+.appcard .ac-detail .bad { color: var(--alert); }
+.appcard .ac-rows { display: flex; flex-direction: column; gap: 1px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.appcard .ac-r { display: flex; justify-content: space-between; gap: 12px; padding: 8px 11px; background: var(--bg-1); font-family: var(--mono); font-size: 11px; }
+.appcard .ac-r .k { color: var(--text-dim); }
+.appcard .ac-r .v { color: var(--text); text-align: right; }
+.appcard .ac-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.appcard .ac-btn { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; height: 42px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.appcard .ac-btn.reject { background: transparent; border-color: var(--line-2); color: var(--text-mid); }
+.appcard .ac-btn.reject:hover { color: var(--alert); border-color: var(--alert-dim); background: var(--alert-dim); }
+.appcard .ac-btn.approve { background: var(--nerve); border-color: var(--nerve); color: #04211c; font-weight: 600; }
+.appcard .ac-btn.approve:hover { box-shadow: 0 0 22px -4px var(--nerve); }
+.appcard .ac-hint { margin-top: 10px; font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); text-align: center; letter-spacing: 0.04em; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.appcard .ac-hint svg { width: 12px; height: 12px; color: var(--synapse); }
+
+/* ===== telegram phone mirror ===== */
+.phone-fab { position: absolute; left: 22px; bottom: 20px; z-index: 30; }
+.phone {
+  width: 248px;
+  border-radius: 30px;
+  background: #0c1013;
+  border: 1px solid var(--line-2);
+  box-shadow: 0 30px 70px -20px rgba(0,0,0,0.8), 0 0 0 6px rgba(0,0,0,0.4);
+  padding: 9px;
+  transform-origin: bottom right;
+  animation: phone-in .5s cubic-bezier(.2,.9,.3,1) both;
+}
+@keyframes phone-in { from{opacity:0; transform: translateY(20px) scale(.92);} to{opacity:1; transform:none;} }
+.phone-screen { background: #0e1621; border-radius: 22px; overflow: hidden; }
+.tg-bar { display: flex; align-items: center; gap: 9px; padding: 11px 13px; background: #17212b; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.tg-bar .tg-av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--nerve), var(--synapse)); display:flex; align-items:center; justify-content:center; }
+.tg-bar .tg-nm { font-family: var(--display); font-size: 13px; color: #e6f0f5; font-weight: 600; }
+.tg-bar .tg-sub { font-family: var(--mono); font-size: 9px; color: #6b8299; }
+.tg-body { padding: 13px 11px 15px; min-height: 150px; background:
+   radial-gradient(circle at 20% 10%, rgba(63,224,197,0.05), transparent 40%),
+   #0e1621; }
+.tg-bubble { background: #18222d; border-radius: 4px 14px 14px 14px; padding: 11px 12px; max-width: 96%; animation: evt-in .4s both; }
+.tg-bubble .tgb-h { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caution); margin-bottom: 6px; display:flex; align-items:center; gap:6px;}
+.tg-bubble .tgb-t { font-family: var(--display); font-size: 13px; color: #e6f0f5; font-weight: 600; margin-bottom: 5px; line-height:1.3; }
+.tg-bubble .tgb-d { font-family: var(--mono); font-size: 10.5px; color: #a9bccb; line-height: 1.5; margin-bottom: 10px; }
+.tg-bubble .tgb-btns { display: flex; gap: 7px; }
+.tg-bubble .tgb-b { flex: 1; text-align: center; font-family: var(--mono); font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+.tg-bubble .tgb-b.y { background: var(--nerve); color: #04211c; font-weight: 600; }
+.tg-bubble .tgb-b.n { background: #25323d; color: #a9bccb; }
+.tg-bubble .tgb-b.y:hover { box-shadow: 0 0 16px -3px var(--nerve); }
+.tg-time { text-align: right; font-family: var(--mono); font-size: 8px; color: #5a7187; margin-top: 5px; }
+.tg-resolved { font-family: var(--mono); font-size: 10px; color: var(--healthy); text-align:center; padding: 8px; }
+.phone-close { position: absolute; top: -10px; left: -10px; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-2); border: 1px solid var(--line-2); color: var(--text-mid); cursor: pointer; display:flex; align-items:center; justify-content:center; font-family: var(--mono); }
+.phone-close:hover { color: var(--text); }
+
+.phone-pill { display: inline-flex; align-items: center; gap: 9px; height: 40px; padding: 0 15px; border-radius: 99px; background: var(--bg-1); border: 1px solid var(--line-2); color: var(--text-mid); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all .16s; }
+.phone-pill:hover { color: var(--text); border-color: var(--nerve-dim); }
+.phone-pill .pp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+.phone-pill[data-alert="true"] .pp-dot { background: var(--caution); box-shadow: 0 0 9px var(--caution); animation: gn-pulse 1.1s infinite; }
+
+/* completion overlay note */
+.done-toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 25; display:flex; align-items:center; gap:10px; padding: 10px 16px; border-radius: 99px; background: rgba(70,211,154,0.12); border: 1px solid rgba(70,211,154,0.35); color: var(--healthy); font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; animation: evt-in .5s both; }
+
+/* idle hint */
+.idle-hint { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; pointer-events: none; }
+.idle-hint .ih-ring { width: 58px; height: 58px; }
+.idle-hint .ih-t { font-family: var(--mono); font-size: 12px; color: var(--text-dim); letter-spacing: 0.1em; }
+
+/* ============================================================
+   v2 additions
+   ============================================================ */
+
+/* ---- metric sparkline (vitals) ---- */
+.spark { margin-top: 16px; }
+.spark-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.spark-row .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); }
+.spark-row .val { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text); }
+.spark-canvas { display: block; width: 100%; height: 40px; border-radius: var(--r-sm); }
+
+/* ---- coherence chip ---- */
+.coh { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+.coh .cd { width: 7px; height: 7px; border-radius: 50%; transition: background .3s, box-shadow .3s; }
+
+/* ---- memory panel ---- */
+.mem-list { display: flex; flex-direction: column; gap: 7px; }
+.mem-empty { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); padding: 6px 0; }
+.mem-fact {
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px;
+  background: var(--bg-1); position: relative; overflow: hidden;
+  animation: mem-flash .7s ease-out;
+}
+.mem-fact[data-op="contradict"] { animation: mem-shake .5s ease-out; border-color: var(--alert-dim); }
+.mem-fact .mf-top { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.mem-fact .mf-k { font-family: var(--mono); font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); }
+.mem-fact .mf-conf { margin-left: auto; font-family: var(--mono); font-size: 9px; font-variant-numeric: tabular-nums; }
+.mem-fact .mf-v { font-family: var(--mono); font-size: 12px; color: var(--text); line-height: 1.35; }
+.mem-fact[data-op="contradict"] .mf-v { color: var(--alert); text-decoration: line-through; text-decoration-color: rgba(255,106,114,0.6); }
+.mem-fact .mf-bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--synapse); transition: width .5s; opacity: 0.8; }
+@keyframes mem-flash { 0% { box-shadow: inset 0 0 0 99px rgba(157,139,255,0.10); } 100% { box-shadow: inset 0 0 0 99px transparent; } }
+@keyframes mem-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-3px)} 40%{transform:translateX(3px)} 60%{transform:translateX(-2px)} 80%{transform:translateX(2px)} }
+
+/* ---- feed typing caret ---- */
+.evt .caret { display: inline-block; width: 7px; height: 13px; margin-left: 1px; vertical-align: -2px; background: var(--nerve); animation: caret-blink 0.9s steps(1) infinite; }
+@keyframes caret-blink { 50% { opacity: 0; } }
+.thinking-row { display: flex; align-items: center; gap: 9px; padding: 8px 20px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.thinking-row .td { display: flex; gap: 3px; }
+.thinking-row .td i { width: 4px; height: 4px; border-radius: 50%; background: var(--text-dim); animation: think 1.1s ease-in-out infinite; }
+.thinking-row .td i:nth-child(2){ animation-delay: .18s; } .thinking-row .td i:nth-child(3){ animation-delay: .36s; }
+@keyframes think { 0%,100%{opacity:.25; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} }
+
+/* ---- graph node jitter under tension ---- */
+.graph-stage[data-tension="high"] .gnode[data-state="active"],
+.graph-stage[data-tension="high"] .gnode[data-state="alert"],
+.graph-stage[data-tension="high"] .gnode[data-state="approval"] {
+  animation: gn-jitter 0.22s steps(2) infinite;
+}
+@keyframes gn-jitter {
+  0% { transform: translate(calc(-50% - 0.7px), calc(-50% + 0.5px)); }
+  100% { transform: translate(calc(-50% + 0.7px), calc(-50% - 0.5px)); }
+}
+
+/* ---- approval impact / blast viz ---- */
+.ac-impact { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 11px; background: rgba(0,0,0,0.2); margin-bottom: 12px; }
+.ac-impact .ai-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.ac-impact .ai-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); }
+.ac-impact .ai-sub { font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
+.ac-pods { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.ac-pods i { aspect-ratio: 1; border-radius: 2px; background: var(--bg-3); border: 1px solid var(--line-2); }
+.ac-pods i.hit { background: var(--caution); border-color: var(--caution); box-shadow: 0 0 6px -1px var(--caution); animation: pod-in .4s both; }
+@keyframes pod-in { from { opacity: 0; transform: scale(.5);} to {opacity:1; transform: none;} }
+.ac-cost { display: flex; align-items: center; gap: 12px; }
+.ac-cost .acc-amt { font-family: var(--display); font-weight: 600; font-size: 24px; color: var(--caution); }
+.ac-cost .acc-meta { font-family: var(--mono); font-size: 10px; color: var(--text-mid); line-height: 1.5; }
+
+/* ---- goal launcher (front door) ---- */
+.launcher { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 18; padding: 24px; }
+.launcher-card { width: min(560px, 86%); animation: evt-in .5s both; }
+.launcher .lc-eyebrow { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; }
+.launcher .lc-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--nerve); box-shadow: 0 0 12px var(--nerve); animation: gn-pulse 1.6s ease-in-out infinite; }
+.launcher .lc-eyebrow span { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-dim); }
+.launcher .lc-field { display: flex; gap: 10px; align-items: stretch; }
+.launcher textarea {
+  flex: 1; resize: none; background: var(--bg-1); border: 1px solid var(--line-2); border-radius: var(--r);
+  color: var(--text); font-family: var(--display); font-size: 17px; line-height: 1.4; padding: 14px 16px;
+  min-height: 64px; transition: border-color .2s;
+}
+.launcher textarea:focus { outline: none; border-color: var(--nerve); box-shadow: 0 0 0 1px var(--nerve-dim); }
+.launcher textarea::placeholder { color: var(--text-faint); }
+.launcher .lc-run {
+  flex: none; width: 56px; border-radius: var(--r); border: 1px solid var(--nerve); background: var(--nerve);
+  color: #04211c; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: box-shadow .2s;
+}
+.launcher .lc-run:hover { box-shadow: 0 0 24px -4px var(--nerve); }
+.launcher .lc-run svg { width: 20px; height: 20px; }
+.launcher .lc-sugs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.launcher .lc-sug { font-family: var(--mono); font-size: 11px; color: var(--text-mid); background: var(--bg-1); border: 1px solid var(--line); border-radius: 99px; padding: 7px 13px; cursor: pointer; transition: all .16s; display: flex; align-items: center; gap: 8px; }
+.launcher .lc-sug:hover { color: var(--text); border-color: var(--nerve-dim); }
+.launcher .lc-sug .sd { width: 6px; height: 6px; border-radius: 50%; background: var(--nerve); }
+.launcher .lc-hint { margin-top: 18px; font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 0.04em; }
+.launching-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 16; font-family: var(--mono); font-size: 12px; color: var(--nerve); letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px; animation: gn-pulse 1.4s ease-in-out infinite; pointer-events: none; }
+
+/* ---- fleet roster ---- */
+.fleet { position: relative; }
+.fleet-btn { display: inline-flex; align-items: center; gap: 9px; height: 34px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-1); color: var(--text-mid); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all .16s; }
+.fleet-btn:hover { color: var(--text); border-color: var(--line-2); }
+.fleet-btn .fdots { display: flex; gap: 3px; }
+.fleet-btn .fdots i { width: 5px; height: 5px; border-radius: 50%; }
+.fleet-pop { position: absolute; top: 42px; left: 0; width: 270px; background: var(--bg-1); border: 1px solid var(--line-2); border-radius: var(--r); padding: 7px; z-index: 40; box-shadow: 0 24px 50px -18px rgba(0,0,0,0.7); animation: evt-in .2s both; }
+.fleet-pop .fp-hd { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); padding: 6px 9px 8px; }
+.fleet-item { display: flex; align-items: center; gap: 10px; padding: 9px; border-radius: var(--r-sm); cursor: pointer; transition: background .14s; }
+.fleet-item:hover { background: var(--bg-2); }
+.fleet-item.ghost { cursor: default; opacity: 0.7; }
+.fleet-item .fi-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.fleet-item .fi-body { min-width: 0; flex: 1; }
+.fleet-item .fi-nm { font-family: var(--display); font-size: 13px; color: var(--text); }
+.fleet-item .fi-sub { font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); }
+.fleet-item .fi-st { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ---- mute button ---- */
+.icon-btn { width: 34px; height: 34px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-1); color: var(--text-dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all .16s; }
+.icon-btn:hover { color: var(--text); border-color: var(--line-2); }
+.icon-btn[data-on="true"] { color: var(--nerve); border-color: var(--nerve-dim); }
+.icon-btn svg { width: 15px; height: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; }
+}
+
+/* ---- live adapter additions (SP1) ---- */
+.live-tag{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:#46d39a;border:1px solid rgba(70,211,154,.4);border-radius:4px;padding:1px 4px 0;margin-left:9px;align-self:center;}
+.launch-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5d6e6c;font-size:13px;letter-spacing:.5px;}
+
+</style>
 </head>
 <body>
-  <canvas id="neuralField"></canvas>
+<div id="root"></div>
 
-  <div id="app">
-  <!-- ───────── Launch ───────── -->
-  <div id="launchView">
-    <div class="launch-box">
-      <div class="lhead"><div class="lcore"></div><h1>INITIALIZE MISSION</h1></div>
-      <p class="sub">Deploy an autonomous operational mission into the NERVE substrate, or link an existing nerve to observe its live activity.</p>
-      <div class="field-label">Mission Goal</div>
-      <input id="goalInput" class="inp" placeholder="e.g. audit the staging deploy pipeline for risk" />
-      <button id="launchBtn" class="btn btn-wide" onclick="launchMission()">⊕ LAUNCH MISSION</button>
-      <div class="divider">OR</div>
-      <div class="row">
-        <input id="missionIdInput" class="inp" style="margin-bottom:0" placeholder="existing mission_id" />
-        <button class="btn ghost" onclick="loadById()">LINK</button>
-      </div>
-      <p id="launchMsg"></p>
-      <div class="launch-foot">
-        <span class="lstat">SUBSTRATE <b>ONLINE</b></span>
-        <span class="lstat">MODE <b>INCIDENT AUTOPILOT</b></span>
-        <button class="btn ghost" style="margin-left:auto" id="demoBtnLaunch" onclick="startDemo()">⚡ RUN INCIDENT DEMO</button>
-      </div>
-    </div>
-  </div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-  <!-- ───────── Mission view ───────── -->
-  <div id="missionView" class="hidden" style="display:contents">
-    <!-- Command bar -->
-    <header>
-      <div class="brand">
-        <span class="mark"></span>
-        <span class="wordmark">NERVE</span>
-        <span class="tag">AUTONOMOUS OPS CONTROL</span>
-      </div>
-      <div class="hdr-spacer"></div>
-      <div class="hdr-id">
-        <span class="k">NERVE</span><span id="sbId">—</span>
-        <span class="k">·</span><span id="sbType">—</span>
-        <span id="sbStatus" class="status-badge">—</span>
-      </div>
-      <div class="hdr-spacer"></div>
-      <div class="hdr-right">
-        <div class="conn"><span id="connDot" class="glow-dot"></span><span id="connText" class="conn-text">—</span></div>
-        <div id="missionDd" class="dd">
-          <button type="button" id="missionDdBtn" class="dd-btn" aria-haspopup="listbox" aria-expanded="false" onclick="toggleDd(event)">
-            <span id="missionDdLabel" class="dd-label">— mission —</span><span class="dd-caret">▾</span>
-          </button>
-          <ul id="missionDdMenu" class="dd-menu hidden" role="listbox"></ul>
+<script type="text/babel" data-source="icons.jsx">
+/* NERVE — inline icon set. Stroke-based, 16px grid. */
+const ICON_PATHS = {
+  pulse:  '<path d="M1 8h3.2l1.8-5 3 11 2-6 1.5 3H15"/>',
+  git:    '<circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="9" r="2"/><path d="M4 6v4M6 4h3a3 3 0 0 1 3 3"/>',
+  radius: '<circle cx="8" cy="8" r="6.2"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M8 8l4.2-4.2"/>',
+  target: '<circle cx="8" cy="8" r="6.2"/><circle cx="8" cy="8" r="2.6"/>',
+  route:  '<circle cx="3.5" cy="3.5" r="1.8"/><circle cx="12.5" cy="12.5" r="1.8"/><path d="M3.5 5.3V9a2.5 2.5 0 0 0 2.5 2.5h4.7"/>',
+  shield: '<path d="M8 1.4l5 1.8v4c0 3.4-2.2 5.8-5 7.2-2.8-1.4-5-3.8-5-7.2v-4z"/><path d="M5.6 8.2l1.7 1.7 3-3.4"/>',
+  bolt:   '<path d="M8.6 1L3 9h4l-.6 6L13 7H9z"/>',
+  check:  '<circle cx="8" cy="8" r="6.4"/><path d="M5.2 8.2l1.9 1.9 3.8-4.2"/>',
+  alert:  '<path d="M8 1.6l6.5 11.6H1.5z"/><path d="M8 6v3.4M8 11.2v.1"/>',
+  ticket: '<path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h9A1.5 1.5 0 0 1 14 5.5V7a1.2 1.2 0 0 0 0 2v1.5A1.5 1.5 0 0 1 12.5 12h-9A1.5 1.5 0 0 1 2 10.5V9a1.2 1.2 0 0 0 0-2z"/><path d="M9 4.5v7" stroke-dasharray="1.3 1.3"/>',
+  bed:    '<path d="M2 4v9M2 8h12a0 0 0 0 1 0 0v5M2 10.5h12"/><path d="M4.5 8V6.5A1.5 1.5 0 0 1 6 5h4a1.5 1.5 0 0 1 1.5 1.5V8"/>',
+  scale:  '<path d="M8 2v12M3 5h10"/><path d="M3 5L1.4 9h3.2zM13 5l-1.6 4h3.2z"/><path d="M5 14h6"/>',
+  star:   '<path d="M8 1.6l1.9 3.9 4.3.6-3.1 3 .7 4.2L8 11.4 4.3 13.3l.7-4.2-3.1-3 4.3-.6z"/>',
+};
+
+function Icon({ name, className, style }) {
+  const p = ICON_PATHS[name] || ICON_PATHS.target;
+  return (
+    <svg className={className} style={style} viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
+      dangerouslySetInnerHTML={{ __html: p }} />
+  );
+}
+
+/* control-bar icons (separate, 14px feel) */
+function CtrlIcon({ name }) {
+  const paths = {
+    play:    '<path d="M4 2.5l9 5.5-9 5.5z" fill="currentColor" stroke="none"/>',
+    pause:   '<rect x="3.5" y="3" width="3" height="10" rx="1" fill="currentColor" stroke="none"/><rect x="9.5" y="3" width="3" height="10" rx="1" fill="currentColor" stroke="none"/>',
+    restart: '<path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13 2v3h-3"/>',
+    chaos:   '<path d="M8 1.6l6.5 11.6H1.5z"/><path d="M8 6v3.4M8 11.4v.1"/>',
+    phone:   '<rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/>',
+    send:    '<path d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z"/>',
+    sound:   '<path d="M3 6v4h2.5L9 13V3L5.5 6z"/><path d="M11 6.5a2.2 2.2 0 0 1 0 3M12.6 5a4.4 4.4 0 0 1 0 6"/>',
+    muted:   '<path d="M3 6v4h2.5L9 13V3L5.5 6z"/><path d="M11.5 6.5l3 3M14.5 6.5l-3 3"/>',
+  };
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"
+      strokeLinecap="round" strokeLinejoin="round"
+      dangerouslySetInnerHTML={{ __html: paths[name] || '' }} />
+  );
+}
+
+window.Icon = Icon;
+window.CtrlIcon = CtrlIcon;
+
+</script>
+<script type="text/babel" data-source="live-data.jsx">
+/* ============================================================
+   NERVE — LIVE data adapter (SP1)
+   Replaces the scripted data.jsx. Provides the static constants
+   the components expect (AGENTS, AGENT_COLOR, MISSIONS presets,
+   FLEET_GHOSTS) plus pure mapping helpers that turn the real
+   backend (GET /missions/{id} + /ws/{id} events) into the exact
+   shapes the presentational components consume.
+   No backend changes — surfaces with no real data (memory,
+   sparkline, blast radius) stay empty until SP2/SP3.
+   ============================================================ */
+
+const AGENTS = [
+  { id: 'planner',   name: 'Planner',   role: 'plans',  color: '#9d8bff' },
+  { id: 'execution', name: 'Execution', role: 'acts',   color: '#3fe0c5' },
+  { id: 'risk',      name: 'Risk',      role: 'scores', color: '#f4c25a' },
+  { id: 'auditor',   name: 'Auditor',   role: 'checks', color: '#46d39a' },
+];
+const ORCH = { id: 'orchestrator', name: 'Orchestrator', color: '#dcebe8' };
+const AGENT_COLOR = {
+  planner: '#9d8bff', execution: '#3fe0c5', risk: '#f4c25a',
+  auditor: '#46d39a', orchestrator: '#dcebe8', system: '#5d6e6c',
+};
+
+/* Launch presets — the two mission types you can start. Each spawns a REAL
+   backend mission; the dashboard then renders that mission's live state under
+   the preset's identity (label + metric). nodes/edges are filled at runtime. */
+const MISSIONS = {
+  incident: {
+    id: 'incident', label: 'Incident Autopilot', mission_type: 'INCIDENT_RESPONSE',
+    launch: 'demo', // GET /demo/start
+    goal: 'Keep <span class="hl">checkout</span> healthy — detect, diagnose & resolve production anomalies.',
+    goalText: 'Keep checkout healthy — detect, diagnose and resolve production incidents automatically.',
+    metric: { label: 'checkout · p99', unit: 'ms', baseline: 410, lowerBetter: true },
+    nodes: [], edges: [], chaosEdges: [], approvalNode: null,
+  },
+  research: {
+    id: 'research', label: 'Research Agent', mission_type: 'GENERAL',
+    launch: 'create', // POST /missions {goal, mission_type:'GENERAL'}
+    goal: 'Find the cheapest <span class="hl">2026 World Cup final</span> ticket + a cheap, well-reviewed hotel nearby.',
+    goalText: 'Find the cheapest 2026 World Cup final ticket and a cheap, well-reviewed hotel nearby.',
+    metric: { label: 'cheapest ticket', unit: '$', baseline: null, lowerBetter: true, prefix: '$' },
+    nodes: [], edges: [], chaosEdges: [], approvalNode: null,
+  },
+};
+
+const FLEET_GHOSTS = [
+  { id: 'cost-audit', label: 'Nightly cost audit', status: 'queued', sub: 'starts 02:00' },
+  { id: 'sec-sweep',  label: 'Dependency CVE sweep', status: 'running', sub: 'no action needed' },
+];
+
+/* ---------------- status / phase mapping ---------------- */
+const PHASE_LABEL = {
+  pending: 'Ready', planning: 'Planning', executing: 'Executing',
+  replanning: 'Re-planning', resolved: 'Resolved', failed: 'Failed',
+};
+function mapPhase(status) { return PHASE_LABEL[status] || (status ? status[0].toUpperCase() + status.slice(1) : 'Ready'); }
+function isTerminal(status) { return status === 'resolved' || status === 'failed'; }
+
+function nodeStateFor(taskStatus) {
+  if (taskStatus === 'completed') return 'done';
+  if (taskStatus === 'in_progress' || taskStatus === 'retrying') return 'active';
+  if (taskStatus === 'failed') return 'alert';
+  return 'pending';
+}
+
+/* ---------------- graph auto-layout from tasks ---------------- */
+const ICON_BY_AGENT = { planner: 'route', execution: 'bolt', risk: 'radius', auditor: 'check' };
+function iconForTask(task) {
+  const d = (task.description || '').toLowerCase();
+  if (d.includes('search') || d.includes('find')) return 'target';
+  if (d.includes('rollback') || d.includes('revert') || d.includes('deploy')) return 'git';
+  if (d.includes('verify') || d.includes('check')) return 'check';
+  if (d.includes('approv')) return 'shield';
+  return ICON_BY_AGENT[task.agent_role] || 'target';
+}
+function shortLabel(desc) {
+  if (!desc) return 'task';
+  const s = desc.trim();
+  return s.length > 34 ? s.slice(0, 32).trimEnd() + '…' : s;
+}
+
+/* Longest-path layering → left-to-right DAG, evenly spread vertically. */
+function buildGraph(tasks) {
+  if (!tasks || !tasks.length) return { nodes: [], edges: [] };
+  const byId = {};
+  tasks.forEach(t => { byId[t.task_id] = t; });
+  const depth = {};
+  const visiting = {};
+  function depthOf(id) {
+    if (depth[id] != null) return depth[id];
+    if (visiting[id]) return 0; // guard against cycles
+    visiting[id] = true;
+    const deps = (byId[id] && byId[id].depends_on) || [];
+    let d = 0;
+    deps.forEach(dep => { if (byId[dep]) d = Math.max(d, depthOf(dep) + 1); });
+    visiting[id] = false;
+    return (depth[id] = d);
+  }
+  tasks.forEach(t => depthOf(t.task_id));
+  const maxLayer = Math.max(1, ...Object.values(depth));
+  const layers = {};
+  tasks.forEach(t => { const L = depth[t.task_id]; (layers[L] = layers[L] || []).push(t); });
+
+  const nodes = [];
+  Object.keys(layers).forEach(Lk => {
+    const L = +Lk;
+    const col = layers[L];
+    const x = maxLayer === 0 ? 50 : 9 + (L / maxLayer) * 82;
+    col.forEach((t, i) => {
+      const span = col.length;
+      const y = span === 1 ? 50 : 18 + (i / (span - 1)) * 64;
+      nodes.push({
+        id: t.task_id, x, y, agent: t.agent_role || 'execution',
+        icon: iconForTask(t), label: shortLabel(t.description), _status: t.status,
+      });
+    });
+  });
+  const ids = new Set(nodes.map(n => n.id));
+  const edges = [];
+  tasks.forEach(t => (t.depends_on || []).forEach(dep => { if (ids.has(dep)) edges.push([dep, t.task_id]); }));
+  return { nodes, edges };
+}
+
+/* ---------------- event → feed item ---------------- */
+const FEED_NOISE = new Set([
+  'SNAPSHOT_TAKEN', 'MCP_TOOL_RESULT', 'MCP_TOOL_CALLED', 'AGENT_OBSERVATION',
+  'RESOLUTION_CHECK', 'RISK_SCORE_UPDATED',
+]);
+
+/* Incident milestone graph — the demo emits milestone events but no task rows,
+   so we light a fixed incident pipeline from the REAL events that arrive. */
+const INCIDENT_MILESTONES = [
+  { id: 'detect',    x: 9,  y: 50, agent: 'execution',    icon: 'pulse',  label: 'Detect anomaly',   on: ['INCIDENT_DETECTED'] },
+  { id: 'correlate', x: 30, y: 32, agent: 'execution',    icon: 'git',    label: 'Assemble context', on: ['CONTEXT_ASSEMBLED'] },
+  { id: 'diagnose',  x: 50, y: 50, agent: 'planner',      icon: 'target', label: 'Root-cause',       on: ['REASONING_COMPLETE'] },
+  { id: 'approve',   x: 70, y: 32, agent: 'orchestrator', icon: 'shield', label: 'Human approval',   on: ['ACTION_CREATED', 'DEMO_APPROVAL_REQUESTED'] },
+  { id: 'execute',   x: 86, y: 50, agent: 'execution',    icon: 'bolt',   label: 'Execute',          on: ['ACTION_EXECUTED', 'ACTION_APPROVED'] },
+  { id: 'verify',    x: 96, y: 74, agent: 'auditor',      icon: 'check',  label: 'Verify recovery',  on: ['RESOLUTION_MONITORING_STARTED'] },
+];
+const INCIDENT_MS_EDGES = [
+  ['detect', 'correlate'], ['correlate', 'diagnose'], ['diagnose', 'approve'],
+  ['approve', 'execute'], ['execute', 'verify'],
+];
+function buildMilestoneGraph(seenTypes, resolved) {
+  const nodes = INCIDENT_MILESTONES.map(m => ({ id: m.id, x: m.x, y: m.y, agent: m.agent, icon: m.icon, label: m.label }));
+  const states = {};
+  let lastDone = -1;
+  INCIDENT_MILESTONES.forEach((m, i) => { if (m.on.some(t => seenTypes.has(t))) { states[m.id] = 'done'; lastDone = i; } });
+  // the milestone just after the last completed one is "active"
+  const nextIdx = lastDone + 1;
+  INCIDENT_MILESTONES.forEach((m, i) => {
+    if (states[m.id] === 'done') { if (i === lastDone && !resolved) states[m.id] = 'active'; }
+    else states[m.id] = i === nextIdx ? 'active' : 'pending';
+  });
+  if (resolved) INCIDENT_MILESTONES.forEach(m => { if (m.on.some(t => seenTypes.has(t))) states[m.id] = 'done'; });
+  return { nodes, edges: INCIDENT_MS_EDGES, nodeStates: states };
+}
+
+const KIND_BY_EVENT = {
+  TASK_FAILED: 'alert', FAILURE_INJECTED: 'alert',
+  RISK_SCORE_UPDATED: 'risk', REPLAN_TRIGGERED: 'risk', FAILURE_CLEARED: 'risk',
+  ACTION_CREATED: 'approval', DEMO_APPROVAL_REQUESTED: 'approval',
+  ACTION_APPROVED: 'approval', ACTION_REJECTED: 'approval',
+  TASK_COMPLETED: 'success', ACTION_EXECUTED: 'success', RESEARCH_SYNTHESIZED: 'success',
+  RESOLUTION_MONITORING_STARTED: 'success',
+  CONTEXT_ASSEMBLED: 'memory', REASONING_COMPLETE: 'memory', MISSION_CREATED: 'memory',
+};
+const AGENT_BY_EVENT = {
+  RISK_SCORE_UPDATED: 'risk', REPLAN_TRIGGERED: 'risk', FAILURE_INJECTED: 'risk', FAILURE_CLEARED: 'risk',
+  REASONING_COMPLETE: 'planner', RESEARCH_SYNTHESIZED: 'planner',
+  ACTION_CREATED: 'orchestrator', ACTION_APPROVED: 'orchestrator', ACTION_REJECTED: 'orchestrator',
+  DEMO_APPROVAL_REQUESTED: 'orchestrator', MISSION_STATUS_CHANGED: 'orchestrator', MISSION_CREATED: 'orchestrator',
+  RESOLUTION_MONITORING_STARTED: 'auditor', TASK_FAILED: 'auditor',
+};
+function agentForEvent(ev) {
+  if (AGENT_BY_EVENT[ev.event_type]) return AGENT_BY_EVENT[ev.event_type];
+  const p = ev.payload || {};
+  if (p.agent_role && AGENT_COLOR[p.agent_role]) return p.agent_role;
+  const src = ev.source;
+  if (src === 'mcp') return 'execution';
+  if (src === 'failure_engine') return 'risk';
+  if (src === 'user') return 'orchestrator';
+  if (src === 'orchestrator') return 'orchestrator';
+  return 'execution';
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function num(v) { return `<span class="num">${esc(v)}</span>`; }
+function em(v) { return `<span class="em">${esc(v)}</span>`; }
+
+/* Humanize an event into a readable feed line (light emphasis only). */
+function eventText(ev) {
+  const p = ev.payload || {};
+  switch (ev.event_type) {
+    case 'MISSION_CREATED': return `Mission opened — ${em(p.goal || 'new goal')}.`;
+    case 'MISSION_STATUS_CHANGED': return `Status ${em(p.from)} → ${em(p.to)}.`;
+    case 'INCIDENT_DETECTED': return `Anomaly detected — ${em(p.title || p.problem_id || 'incident')}.`;
+    case 'CONTEXT_ASSEMBLED': return `Context assembled · ${num(p.deployments != null ? p.deployments : 0)} deploys for ${em(p.service_id || 'service')}.`;
+    case 'REASONING_COMPLETE': return `Reasoning complete — recommendation ${em(p.recommendation || 'ready')}${p.confidence != null ? ` · confidence ${num(p.confidence)}` : ''}.`;
+    case 'TASK_STARTED': return `Task started.`;
+    case 'TASK_COMPLETED': return `Task complete${p.tool ? ` via ${em(p.tool)}` : ''}.`;
+    case 'TASK_FAILED': return `Task failed${p.reason ? ` — ${esc(p.reason)}` : ''}.`;
+    case 'TASK_RETRYING': return `Retrying task · attempt ${num(p.retry_count || 1)}.`;
+    case 'RISK_SCORE_UPDATED': return `Risk index ${num(Math.round((p.overall != null ? p.overall : 0) * 100))}.`;
+    case 'REPLAN_TRIGGERED': return `${em('Tripping re-plan')} — ${esc(p.reason || 'risk too high')} (risk ${num(p.risk != null ? p.risk : '—')}).`;
+    case 'FAILURE_INJECTED': return `${em('Chaos injected')} — ${esc(p.type || 'failure')} on ${em(p.target || 'tool')} (severity ${num(p.severity != null ? p.severity : '—')}).`;
+    case 'FAILURE_CLEARED': return `Failure cleared — ${esc(p.type || 'failure')} resolved.`;
+    case 'ACTION_CREATED': return `${em('Approval required')} — ${esc(p.type || p.action_type || 'action')}. Mirrored to Telegram.`;
+    case 'DEMO_APPROVAL_REQUESTED': return `${em('Approval required')} — ${esc(p.action || 'action')}. Mirrored to Telegram.`;
+    case 'ACTION_APPROVED': return `Approved${p.approved_by ? ` by ${em(p.approved_by)}` : ''}. Executing.`;
+    case 'ACTION_REJECTED': return `Held by human — standing down.`;
+    case 'ACTION_EXECUTED': return `Action executed.`;
+    case 'RESOLUTION_MONITORING_STARTED': return `Watching metrics for recovery on ${em(p.service_id || 'service')}…`;
+    case 'RESEARCH_SYNTHESIZED': return `${em('Recommendation ready')} — handed off for approval.`;
+    default: {
+      const keys = Object.keys(p).slice(0, 3).map(k => `${k}=${esc(typeof p[k] === 'object' ? JSON.stringify(p[k]).slice(0, 24) : p[k])}`).join(' · ');
+      return `${esc(ev.event_type)}${keys ? ' · ' + keys : ''}`;
+    }
+  }
+}
+
+function translateEvent(ev) {
+  if (!ev || !ev.event_type || FEED_NOISE.has(ev.event_type)) return null;
+  return {
+    id: ev.event_id, ts: ev.created_at,
+    kind: KIND_BY_EVENT[ev.event_type] || 'signal',
+    agent: agentForEvent(ev),
+    text: eventText(ev),
+    tool: (ev.payload && ev.payload.tool) || null,
+    event_type: ev.event_type,
+  };
+}
+
+/* ---------------- pending action → approval card ---------------- */
+function actionToApproval(action) {
+  if (!action) return null;
+  const p = action.payload || {};
+  const type = action.action_type;
+  if (type === 'gitlab_rollback') {
+    return {
+      action_id: action.action_id, title: 'Roll back deployment',
+      detail: `NERVE wants to <span class="em">revert ${esc(p.ref || 'the latest deploy')}</span> on <span class="em">${esc(p.environment || 'production')}</span> to stop the regression. Runs a GitLab rollback pipeline.`,
+      rows: [
+        ['Target', esc((p.environment || 'prod'))],
+        ['Action', `Rollback ${esc(p.ref || '')}`.trim()],
+        p.sha ? ['Commit', esc(String(p.sha).slice(0, 8))] : null,
+        p.confidence != null ? ['Confidence', `${Math.round(p.confidence * 100)}%`] : null,
+      ].filter(Boolean),
+      approve: 'Approve rollback', reject: 'Hold', integration: 'GitLab pipeline',
+    };
+  }
+  if (type === 'human_approval_request') {
+    const rec = p.recommendation || '';
+    const firstLine = rec.split('\n').filter(Boolean)[0] || 'Review the recommendation NERVE prepared.';
+    return {
+      action_id: action.action_id, title: 'Review recommendation',
+      detail: esc(firstLine),
+      rows: rec.split('\n').filter(Boolean).slice(0, 4).map(line => ['', line.replace(/^[-•]\s*/, '')]),
+      approve: 'Approve', reject: 'Hold', integration: 'Hand-off',
+    };
+  }
+  return {
+    action_id: action.action_id, title: `Approve ${esc(type)}`,
+    detail: esc(JSON.stringify(p).slice(0, 160)),
+    rows: Object.entries(p).slice(0, 4).map(([k, v]) => [k, esc(typeof v === 'object' ? JSON.stringify(v).slice(0, 28) : v)]),
+    approve: 'Approve', reject: 'Hold', integration: 'Action',
+  };
+}
+
+/* ---------------- backend API client ---------------- */
+const Api = {
+  async startDemo() { const r = await fetch('/demo/start'); return r.json(); },
+  async createMission(goal, mission_type) {
+    const r = await fetch('/missions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, mission_type }),
+    });
+    return r.json();
+  },
+  async getState(id) { const r = await fetch(`/missions/${id}`); if (!r.ok) throw new Error('state ' + r.status); return r.json(); },
+  async approve(id) {
+    return fetch(`/actions/${id}/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved_by: 'dashboard' }),
+    });
+  },
+  async reject(id) {
+    return fetch(`/actions/${id}/reject`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved_by: 'dashboard', reason: 'held from dashboard' }),
+    });
+  },
+  async injectChaos(missionId) {
+    const body = { failure_type: 'CONTRADICTORY_METRICS', target: 'get_metrics', severity: 0.85, duration_seconds: 25 };
+    return fetch(`/failure/inject?mission_id=${encodeURIComponent(missionId)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+  },
+};
+
+/* known-missions roster (shared with the classic dashboard) */
+function getKnown() { try { return JSON.parse(localStorage.getItem('nerve_missions') || '[]'); } catch { return []; } }
+function addKnown(id, type) {
+  const list = getKnown().filter(m => m.id !== id);
+  list.unshift({ id, type, at: Date.now() });
+  try { localStorage.setItem('nerve_missions', JSON.stringify(list.slice(0, 12))); } catch {}
+}
+
+window.NERVE = { AGENTS, ORCH, AGENT_COLOR, MISSIONS, FLEET_GHOSTS };
+window.NERVE_LIVE = {
+  mapPhase, isTerminal, nodeStateFor, buildGraph, buildMilestoneGraph,
+  translateEvent, actionToApproval, Api, getKnown, addKnown, FEED_NOISE,
+};
+
+</script>
+<script type="text/babel" data-source="tweaks-panel.jsx">
+// @ds-adherence-ignore -- omelette starter scaffold (raw elements/hex/px by design)
+
+/* BEGIN USAGE */
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+// Exports (to window): useTweaks, TweaksPanel, TweakSection, TweakRow, TweakSlider,
+//   TweakToggle, TweakRadio, TweakSelect, TweakText, TweakNumber, TweakColor, TweakButton.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "palette": ["#D97757", "#29261b", "#f6f4ef"],
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        options={['#D97757', '#2A6FDB', '#1F8A5B', '#7A5AE0']}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakColor  label="Palette" value={t.palette}
+//                        options={[['#D97757', '#29261b', '#f6f4ef'],
+//                                  ['#475569', '#0f172a', '#f1f5f9']]}
+//                        onChange={(v) => setTweak('palette', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// TweakRadio is the segmented control for 2–3 short options (auto-falls-back to
+// TweakSelect past ~16/~10 chars per label); reach for TweakSelect directly when
+// options are many or long. For color tweaks always curate 3-4 options rather than
+// a free picker; an option can also be a whole 2–5 color palette (the stored value
+// is the array). The Tweak* controls are a floor, not a ceiling — build custom
+// controls inside the panel if a tweak calls for UI they don't cover.
+/* END USAGE */
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom right;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;box-sizing:border-box;width:100%;min-width:0;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;
+    overflow-wrap:anywhere}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;box-sizing:border-box;min-width:0;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+
+  .twk-chips{display:flex;gap:6px}
+  .twk-chip{position:relative;appearance:none;flex:1;min-width:0;height:46px;
+    padding:0;border:0;border-radius:6px;overflow:hidden;cursor:default;
+    box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06);
+    transition:transform .12s cubic-bezier(.3,.7,.4,1),box-shadow .12s}
+  .twk-chip:hover{transform:translateY(-1px);
+    box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 4px 10px rgba(0,0,0,.12)}
+  .twk-chip[data-on="1"]{box-shadow:0 0 0 1.5px rgba(0,0,0,.85),
+    0 2px 6px rgba(0,0,0,.15)}
+  .twk-chip>span{position:absolute;top:0;bottom:0;right:0;width:34%;
+    display:flex;flex-direction:column;box-shadow:-1px 0 0 rgba(0,0,0,.1)}
+  .twk-chip>span>i{flex:1;box-shadow:0 -1px 0 rgba(0,0,0,.1)}
+  .twk-chip>span>i:first-child{box-shadow:none}
+  .twk-chip svg{position:absolute;top:6px;left:6px;width:13px;height:13px;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.3))}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  // Accepts either setTweak('key', value) or setTweak({ key: value, ... }) so a
+  // useState-style call doesn't write a "[object Object]" key into the persisted
+  // JSON block.
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+    // Same-window signal so in-page listeners (deck-stage rail thumbnails)
+    // can react — the parent message only reaches the host, not peers.
+    window.dispatchEvent(new CustomEvent('tweakchange', { detail: edits }));
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" data-omelette-chrome=""
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
         </div>
-        <button id="demoBtn" class="btn" onclick="startDemo()">⚡ INCIDENT DEMO</button>
+        <div className="twk-body">
+          {children}
+        </div>
       </div>
-    </header>
+    </>
+  );
+}
 
-    <!-- Vitals -->
-    <div class="vitals">
-      <div class="vcard rise-1" id="vStatus">
-        <div class="vlabel"><span class="eyebrow">Mission State</span></div>
-        <div class="vval"><span id="vStatusVal">STANDBY</span></div>
-        <div class="vsub" id="vElapsed">elapsed —</div>
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
       </div>
-      <div class="vcard rise-2" id="vRisk">
-        <div class="vlabel"><span class="eyebrow">Risk Index</span></div>
-        <div class="vval" id="vRiskVal">—</div>
-        <div class="vsub" id="vRiskLabel">no signal</div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  // Segments wrap mid-word once per-segment width runs out. The track is
+  // ~248px (280 panel − 28 body pad − 4 seg pad), each button loses 12px
+  // to its own padding, and 11.5px system-ui averages ~6.3px/char — so 2
+  // options fit ~16 chars each, 3 fit ~10. Past that (or >3 options), fall
+  // back to a dropdown rather than wrap.
+  const labelLen = (o) => String(typeof o === 'object' ? o.label : o).length;
+  const maxLen = options.reduce((m, o) => Math.max(m, labelLen(o)), 0);
+  const fitsAsSegments = maxLen <= ({ 2: 16, 3: 10 }[options.length] ?? 0);
+  if (!fitsAsSegments) {
+    // <select> emits strings — map back to the original option value so the
+    // fallback stays type-preserving (numbers, booleans) like the segment path.
+    const resolve = (s) => {
+      const m = options.find((o) => String(typeof o === 'object' ? o.value : o) === s);
+      return m === undefined ? s : typeof m === 'object' ? m.value : m;
+    };
+    return <TweakSelect label={label} value={value} options={options}
+                        onChange={(s) => onChange(resolve(s))} />;
+  }
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
       </div>
-      <div class="vcard rise-3" id="vTasks">
-        <div class="vlabel"><span class="eyebrow">Neural Tasks</span></div>
-        <div class="vval" id="vTasksVal">0</div>
-        <div class="progress"><i id="vTasksBar"></i></div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+// Relative-luminance contrast pick — checkmarks drawn over a swatch need to
+// read on both #111 and #fafafa without per-option configuration. Hex input
+// only (#rgb / #rrggbb); named or rgb()/hsl() colors fall through to "light".
+function __twkIsLight(hex) {
+  const h = String(hex).replace('#', '');
+  const x = h.length === 3 ? h.replace(/./g, (c) => c + c) : h.padEnd(6, '0');
+  const n = parseInt(x.slice(0, 6), 16);
+  if (Number.isNaN(n)) return true;
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return r * 299 + g * 587 + b * 114 > 148000;
+}
+
+const __TwkCheck = ({ light }) => (
+  <svg viewBox="0 0 14 14" aria-hidden="true">
+    <path d="M3 7.2 5.8 10 11 4.2" fill="none" strokeWidth="2.2"
+          strokeLinecap="round" strokeLinejoin="round"
+          stroke={light ? 'rgba(0,0,0,.78)' : '#fff'} />
+  </svg>
+);
+
+// TweakColor — curated color/palette picker. Each option is either a single
+// hex string or an array of 1-5 hex strings; the card adapts — a lone color
+// renders solid, a palette renders colors[0] as the hero (left ~2/3) with the
+// rest stacked in a sharp column on the right. onChange emits the
+// option in the shape it was passed (string stays string, array stays array).
+// Without options it falls back to the native color input for back-compat.
+function TweakColor({ label, value, options, onChange }) {
+  if (!options || !options.length) {
+    return (
+      <div className="twk-row twk-row-h">
+        <div className="twk-lbl"><span>{label}</span></div>
+        <input type="color" className="twk-swatch" value={value}
+               onChange={(e) => onChange(e.target.value)} />
       </div>
-      <div class="vcard rise-4" id="vAttn">
-        <div class="vlabel"><span class="eyebrow">Needs Attention</span></div>
-        <div class="vval"><span id="vApprovals">0</span> <span style="font-size:12px;color:var(--mute)">/ </span><span id="vFailures" style="color:var(--alert)">0</span></div>
-        <div class="vsub">approvals / failures</div>
+    );
+  }
+  // Native <input type=color> emits lowercase hex per the HTML spec, so
+  // compare case-insensitively. String() guards JSON.stringify(undefined),
+  // which returns the primitive undefined (no .toLowerCase).
+  const key = (o) => String(JSON.stringify(o)).toLowerCase();
+  const cur = key(value);
+  return (
+    <TweakRow label={label}>
+      <div className="twk-chips" role="radiogroup">
+        {options.map((o, i) => {
+          const colors = Array.isArray(o) ? o : [o];
+          const [hero, ...rest] = colors;
+          const sup = rest.slice(0, 4);
+          const on = key(o) === cur;
+          return (
+            <button key={i} type="button" className="twk-chip" role="radio"
+                    aria-checked={on} data-on={on ? '1' : '0'}
+                    aria-label={colors.join(', ')} title={colors.join(' · ')}
+                    style={{ background: hero }}
+                    onClick={() => onChange(o)}>
+              {sup.length > 0 && (
+                <span>
+                  {sup.map((c, j) => <i key={j} style={{ background: c }} />)}
+                </span>
+              )}
+              {on && <__TwkCheck light={__twkIsLight(hero)} />}
+            </button>
+          );
+        })}
       </div>
-      <div class="vcard ecg rise-4" id="ecgCard">
-        <div class="ecg-top"><span class="eyebrow">System Pulse</span><span class="eyebrow" id="ecgState" style="color:var(--mute)">IDLE</span></div>
-        <svg viewBox="0 0 480 46" preserveAspectRatio="none" aria-hidden="true">
-          <g class="ecg-track">
-            <path class="ecg-line" d="M0 23 H30 l6 -2 6 4 5 -16 6 30 6 -16 6 0 H100 l6 -2 6 4 5 -16 6 30 6 -16 6 0 H170 l6 -2 6 4 5 -16 6 30 6 -16 6 0 H240" />
-            <path class="ecg-line" d="M240 23 H270 l6 -2 6 4 5 -16 6 30 6 -16 6 0 H340 l6 -2 6 4 5 -16 6 30 6 -16 6 0 H410 l6 -2 6 4 5 -16 6 30 6 -16 6 0 H480" />
-          </g>
-        </svg>
-        <div class="ecg-fade"></div>
+    </TweakRow>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+
+</script>
+<script type="text/babel" data-source="extras.jsx">
+/* NERVE — v2 surfaces: Sparkline, MemoryPanel, GoalLauncher, Fleet, audio */
+
+/* ---------------- metric formatting ---------------- */
+function fmtMetric(v, metric) {
+  if (v == null) return '—';
+  if (metric.unit === 'ms') return v >= 1000 ? (v / 1000).toFixed(1) + 's' : Math.round(v) + 'ms';
+  if (metric.unit === '$') return '$' + Math.round(v).toLocaleString();
+  return String(v);
+}
+
+/* ---------------- recovery sparkline ---------------- */
+function Sparkline({ series, metric, baseline }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const cv = ref.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const data = series.filter(v => v != null);
+    if (data.length < 2) return;
+    const pad = 6;
+    let mn = Math.min(...data), mx = Math.max(...data);
+    if (baseline != null) mn = Math.min(mn, baseline);
+    if (mx - mn < 1) mx = mn + 1;
+    const X = i => pad + (i / (series.length - 1)) * (w - pad * 2);
+    const Y = v => h - pad - ((v - mn) / (mx - mn)) * (h - pad * 2);
+
+    // baseline guide
+    if (baseline != null) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad, Y(baseline)); ctx.lineTo(w - pad, Y(baseline)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // trend colour: comparing last two real points
+    const last = data[data.length - 1], prev = data[data.length - 2];
+    const improving = metric.lowerBetter ? last <= prev : last >= prev;
+    const settled = Math.abs(last - (baseline ?? last)) < (mx - mn) * 0.12;
+    const col = settled ? '#46d39a' : (improving ? '#3fe0c5' : '#f4c25a');
+
+    // build point list carrying last value through nulls
+    let lastV = null; const pts = series.map((v, i) => { if (v != null) lastV = v; return lastV == null ? null : { x: X(i), y: Y(lastV) }; }).filter(Boolean);
+    // area fill
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, col + '33'); g.addColorStop(1, col + '00');
+    ctx.beginPath(); ctx.moveTo(pts[0].x, h - pad);
+    pts.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(pts[pts.length - 1].x, h - pad); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
+    // line
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.shadowColor = col; ctx.shadowBlur = 6; ctx.stroke(); ctx.shadowBlur = 0;
+    // head dot
+    const hd = pts[pts.length - 1];
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(hd.x, hd.y, 2.4, 0, 7); ctx.fill();
+  }, [series, baseline, metric]);
+
+  const lastReal = [...series].reverse().find(v => v != null);
+  const lastV = lastReal == null ? null : lastReal;
+  const prevReal = [...series].reverse().filter(v => v != null)[1];
+  const improving = lastV != null && prevReal != null && (metric.lowerBetter ? lastV <= prevReal : lastV >= prevReal);
+  const col = lastV == null ? 'var(--text-mid)' : (improving ? '#3fe0c5' : '#f4c25a');
+  return (
+    <div className="spark">
+      <div className="spark-row">
+        <span className="lbl">{metric.label}</span>
+        <span className="val" style={{ color: col }}>{fmtMetric(lastV, metric)}</span>
+      </div>
+      <canvas ref={ref} className="spark-canvas" />
+    </div>
+  );
+}
+
+/* ---------------- shared-memory panel ---------------- */
+function MemoryPanel({ facts }) {
+  return (
+    <div className="panel">
+      <div className="panel-hd"><span className="ttl">Working memory</span><span className="eyebrow">{facts.length} beliefs</span></div>
+      <div className="mem-list">
+        {facts.length === 0 && <div className="mem-empty">No beliefs yet — memory fills as NERVE reasons.</div>}
+        {facts.map(f => {
+          const confCol = f.conf >= 0.8 ? '#46d39a' : f.conf >= 0.5 ? '#f4c25a' : '#ff6a72';
+          return (
+            <div className="mem-fact" data-op={f.op} key={f.k + '-' + f.ver}>
+              <div className="mf-top">
+                <span className="mf-k">{f.label}</span>
+                <span className="mf-conf" style={{ color: confCol }}>{Math.round(f.conf * 100)}%</span>
+              </div>
+              <div className="mf-v">{f.v}</div>
+              <span className="mf-bar" style={{ width: (f.conf * 100) + '%', background: confCol }} />
+            </div>
+          );
+        })}
       </div>
     </div>
+  );
+}
 
-    <!-- Main: synaptic map + telemetry rail -->
-    <main>
-      <section id="graphPanel" class="panel rise-2">
-        <div class="panel-head"><span class="ph-accent"></span> SYNAPTIC MISSION MAP <span class="spacer"></span>
-          <span class="chip"><span id="taskCount">0</span> NEURONS</span></div>
-        <div id="graphWrap">
-          <svg id="synapse" preserveAspectRatio="xMidYMid meet"></svg>
-          <div id="graphTip"></div>
-          <div class="graph-empty" id="graphEmpty">
-            <div class="core"></div>
-            <div class="cap">AWAITING NEURAL ACTIVITY</div>
-            <div style="font-size:10px;letter-spacing:.5px">INCIDENT AUTOPILOT · STANDBY</div>
+/* ---------------- goal launcher (front door) ---------------- */
+function GoalLauncher({ mission, onLaunch }) {
+  const [text, setText] = React.useState(mission.goalText);
+  React.useEffect(() => { setText(mission.goalText); }, [mission.id]);
+  const missions = Object.values(window.NERVE.MISSIONS);
+  const submit = () => onLaunch(mission.id, text);
+  return (
+    <div className="launcher">
+      <div className="launcher-card">
+        <div className="lc-eyebrow"><span className="lc-pulse" /><span>New mission · give NERVE a goal</span></div>
+        <div className="lc-field">
+          <textarea value={text} spellCheck={false}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }} />
+          <button className="lc-run" onClick={submit} title="Run mission"><CtrlIcon name="send" /></button>
+        </div>
+        <div className="lc-sugs">
+          {missions.map(m => (
+            <button className="lc-sug" key={m.id} onClick={() => onLaunch(m.id, m.goalText)}>
+              <span className="sd" style={{ background: m.id === 'incident' ? '#ff6a72' : '#3fe0c5' }} />{m.label}
+            </button>
+          ))}
+        </div>
+        <div className="lc-hint">NERVE will decompose the goal into a task graph, then run it — pausing for your approval before anything consequential.</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- fleet roster ---------------- */
+function Fleet({ missions, currentId, statusOf, awaiting, onSelect }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const ghosts = window.NERVE.FLEET_GHOSTS;
+  const liveCount = missions.length + ghosts.filter(g => g.status === 'running').length;
+  return (
+    <div className="fleet" ref={ref}>
+      <button className="fleet-btn" onClick={() => setOpen(o => !o)}>
+        <span className="fdots">
+          {missions.map(m => { const s = statusOf(m.id); return <i key={m.id} style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />; })}
+          {ghosts.map(g => <i key={g.id} style={{ background: g.status === 'running' ? '#46d39a' : '#3a4745' }} />)}
+        </span>
+        Fleet · {liveCount}{awaiting ? ' · 1 awaiting you' : ''}
+      </button>
+      {open && (
+        <div className="fleet-pop">
+          <div className="fp-hd">Active missions</div>
+          {missions.map(m => {
+            const s = statusOf(m.id);
+            return (
+              <div className="fleet-item" key={m.id} onClick={() => { onSelect(m.id); setOpen(false); }}>
+                <span className="fi-dot" style={{ background: s.color, boxShadow: `0 0 7px ${s.color}` }} />
+                <div className="fi-body"><div className="fi-nm">{m.label}</div><div className="fi-sub">{m.id === currentId ? 'on screen' : 'tap to open'}</div></div>
+                <span className="fi-st" style={{ color: s.color }}>{s.label}</span>
+              </div>
+            );
+          })}
+          <div className="fp-hd">Background</div>
+          {ghosts.map(g => (
+            <div className="fleet-item ghost" key={g.id}>
+              <span className="fi-dot" style={{ background: g.status === 'running' ? '#46d39a' : '#3a4745' }} />
+              <div className="fi-body"><div className="fi-nm">{g.label}</div><div className="fi-sub">{g.sub}</div></div>
+              <span className="fi-st" style={{ color: g.status === 'running' ? '#46d39a' : '#5d6e6c' }}>{g.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- ambient audio ---------------- */
+const NerveAudio = {
+  ctx: null, enabled: false,
+  ensure() { if (!this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return this.ctx; },
+  play(type) {
+    if (!this.enabled) return;
+    const ctx = this.ensure(); if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const tones = {
+      alert:   [{ f: 340, t: 0 }, { f: 300, t: 0.14 }],
+      approve: [{ f: 540, t: 0 }, { f: 760, t: 0.1 }],
+      resolve: [{ f: 520, t: 0 }, { f: 680, t: 0.1 }, { f: 880, t: 0.2 }],
+      reject:  [{ f: 300, t: 0 }],
+      tick:    [{ f: 660, t: 0 }],
+    };
+    const seq = tones[type] || tones.tick;
+    seq.forEach(({ f, t }) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type === 'alert' ? 'sawtooth' : 'sine';
+      o.frequency.value = f;
+      const st = now + t;
+      const vol = type === 'tick' ? 0.04 : 0.10;
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(vol, st + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, st + 0.22);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(st); o.stop(st + 0.24);
+    });
+  },
+};
+
+window.Sparkline = Sparkline;
+window.MemoryPanel = MemoryPanel;
+window.GoalLauncher = GoalLauncher;
+window.Fleet = Fleet;
+window.NerveAudio = NerveAudio;
+window.fmtMetric = fmtMetric;
+
+</script>
+<script type="text/babel" data-source="Vitals.jsx">
+/* NERVE — Vitals: ECG heartbeat (canvas) + confidence + agent hub */
+
+const VITAL_BANDS = [
+  { max: 22,  name: 'calm',     color: '#46d39a' },
+  { max: 50,  name: 'steady',   color: '#3fe0c5' },
+  { max: 72,  name: 'elevated', color: '#f4c25a' },
+  { max: 101, name: 'critical', color: '#ff6a72' },
+];
+function bandFor(risk) {
+  return VITAL_BANDS.find(b => risk < b.max) || VITAL_BANDS[VITAL_BANDS.length - 1];
+}
+
+/* PQRST-ish single-beat waveform, t in [0,1) */
+function ecgWave(t) {
+  const g = (mu, v) => Math.exp(-((t - mu) * (t - mu)) / (2 * v));
+  return (
+    0.13 * g(0.16, 0.0016)   // P
+    - 0.11 * g(0.255, 0.0004) // Q
+    + 1.00 * g(0.288, 0.00028) // R
+    - 0.24 * g(0.318, 0.0006)  // S
+    + 0.28 * g(0.49, 0.0030)   // T
+  );
+}
+
+function ECG({ risk, running }) {
+  const canvasRef = React.useRef(null);
+  const stateRef = React.useRef({ buf: null, phase: 0, accum: 0, last: 0, risk: risk });
+  stateRef.current.targetRisk = risk;
+  stateRef.current.running = running;
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let raf;
+    const st = stateRef.current;
+
+    function size() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      st.W = w; st.H = h;
+      st.buf = new Array(Math.ceil(w)).fill(0);
+    }
+    size();
+    const ro = new ResizeObserver(size); ro.observe(canvas);
+
+    const PX_PER_SEC = 78;
+    function frame(ts) {
+      if (!st.last) st.last = ts;
+      let dt = (ts - st.last) / 1000; st.last = ts;
+      if (dt > 0.1) dt = 0.1;
+      // ease displayed risk toward target
+      st.risk += (st.targetRisk - st.risk) * Math.min(1, dt * 3);
+      const r = st.risk;
+      const bpm = 56 + r * 1.02;
+      const phasePerPx = (bpm / 60) / PX_PER_SEC;
+      const noise = (r / 100) * 0.05;
+      const amp = st.H * 0.34;
+
+      const W = st.W, H = st.H, mid = H * 0.56;
+      // advance buffer
+      let px = st.running ? PX_PER_SEC * dt + st.accum : st.accum;
+      let whole = Math.floor(px);
+      st.accum = px - whole;
+      if (whole > W) whole = W;
+      for (let i = 0; i < whole; i++) {
+        st.phase += phasePerPx;
+        if (st.phase >= 1) st.phase -= 1;
+        let y = ecgWave(st.phase) * amp;
+        if (noise) y += (Math.random() - 0.5) * noise * amp * 2;
+        st.buf.push(y);
+        if (st.buf.length > W) st.buf.shift();
+      }
+
+      const band = bandFor(r);
+      const col = band.color;
+      // draw
+      ctx.clearRect(0, 0, W, H);
+      // faint centerline
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W, mid); ctx.stroke();
+
+      const buf = st.buf;
+      const n = buf.length;
+      // glow trace
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.shadowColor = col; ctx.shadowBlur = 9;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const x = W - (n - 1 - i);
+        const y = mid - buf[i];
+        // fade older samples by drawing a gradient? keep simple: skip
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // leading dot
+      if (n) {
+        const y = mid - buf[n - 1];
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(W - 1, y, 2.4, 0, 7); ctx.fill();
+      }
+      // left fade mask
+      const grd = ctx.createLinearGradient(0, 0, W * 0.18, 0);
+      grd.addColorStop(0, 'rgba(6,9,11,1)');
+      grd.addColorStop(1, 'rgba(6,9,11,0)');
+      ctx.fillStyle = grd; ctx.fillRect(0, 0, W * 0.18, H);
+
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, []);
+
+  const band = bandFor(risk);
+  const bpm = Math.round(56 + risk * 1.02);
+  return (
+    <div className="ecg-wrap">
+      <canvas ref={canvasRef} className="ecg-canvas" />
+      <div className="ecg-readout">
+        <span className="big tnum" style={{ color: band.color }}>{Math.round(risk)}</span>
+        <span className="unit">RISK<br/>INDEX</span>
+      </div>
+      <div className="ecg-band" style={{ color: band.color }}>{band.name}</div>
+      <div className="ecg-bpm tnum">{bpm} bpm</div>
+    </div>
+  );
+}
+
+/* central orchestrator + 4 agents, signals fire into the hub */
+function AgentHub({ activeAgent, fireKey, agents }) {
+  const POS = {
+    planner:   { x: 44,  y: 40 },
+    execution: { x: 156, y: 40 },
+    risk:      { x: 44,  y: 140 },
+    auditor:   { x: 156, y: 140 },
+  };
+  const C = { x: 100, y: 90 };
+  return (
+    <svg className="hub-svg" viewBox="0 0 200 180" fill="none">
+      {/* edges */}
+      {agents.map(a => {
+        const p = POS[a.id];
+        const on = activeAgent === a.id;
+        return (
+          <line key={'e' + a.id} x1={p.x} y1={p.y} x2={C.x} y2={C.y}
+            stroke={on ? a.color : 'rgba(120,200,190,0.12)'} strokeWidth={on ? 1.3 : 1}
+            style={{ transition: 'stroke .3s', opacity: on ? 0.85 : 0.5 }} />
+        );
+      })}
+      {/* traveling signal pulse */}
+      {activeAgent && POS[activeAgent] && (
+        <circle key={fireKey} r="3"
+          fill={(agents.find(a => a.id === activeAgent) || {}).color || '#3fe0c5'}>
+          <animate attributeName="cx" from={POS[activeAgent].x} to={C.x} dur="0.6s" fill="freeze" />
+          <animate attributeName="cy" from={POS[activeAgent].y} to={C.y} dur="0.6s" fill="freeze" />
+          <animate attributeName="opacity" from="1" to="0.15" dur="0.6s" fill="freeze" />
+          <animate attributeName="r" from="3.4" to="1.5" dur="0.6s" fill="freeze" />
+        </circle>
+      )}
+      {/* orchestrator core */}
+      <circle cx={C.x} cy={C.y} r="20" fill="rgba(63,224,197,0.04)" stroke="rgba(120,200,190,0.18)" />
+      <circle cx={C.x} cy={C.y} r="11" fill="rgba(8,12,14,0.9)" stroke="rgba(120,200,190,0.35)">
+        <animate attributeName="r" values="11;13;11" dur="2.6s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={C.x} cy={C.y} r="3.4" fill="#dcebe8">
+        <animate attributeName="opacity" values="1;0.5;1" dur="2.6s" repeatCount="indefinite" />
+      </circle>
+      <text x={C.x} y={C.y + 33} textAnchor="middle" fontFamily="'IBM Plex Mono', monospace"
+        fontSize="7" letterSpacing="1.4" fill="#5d6e6c">ORCHESTRATOR</text>
+      {/* agent nodes */}
+      {agents.map(a => {
+        const p = POS[a.id];
+        const on = activeAgent === a.id;
+        return (
+          <g key={a.id}>
+            <circle cx={p.x} cy={p.y} r={on ? 9 : 7}
+              fill={on ? a.color : 'rgba(8,12,14,0.9)'}
+              stroke={a.color} strokeWidth="1.3"
+              style={{ transition: 'all .3s', filter: on ? `drop-shadow(0 0 8px ${a.color})` : 'none' }} />
+            <circle cx={p.x} cy={p.y} r="2.4" fill={on ? '#06090b' : a.color} style={{ transition: 'fill .3s' }} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function Vitals({ risk, confidence, running, activeAgent, fireKey, agents, agentStatus, replans, actions, series, metric, baseline, coherence }) {
+  const confCol = confidence > 70 ? '#46d39a' : confidence > 45 ? '#3fe0c5' : confidence > 25 ? '#f4c25a' : '#ff6a72';
+  const cohCol = coherence === 'reconciling' ? '#f4c25a' : '#46d39a';
+  return (
+    <>
+      <div className="panel">
+        <div className="panel-hd"><span className="ttl">Vitals</span>
+          <span className="eyebrow" style={{ color: running ? '#46d39a' : '#5d6e6c' }}>{running ? '● live' : '○ paused'}</span>
+        </div>
+        <ECG risk={risk} running={running} />
+        <div className="meter">
+          <div className="meter-row"><span className="lbl">Confidence</span><span className="val tnum">{Math.round(confidence)}%</span></div>
+          <div className="meter-track"><div className="meter-fill" style={{ width: confidence + '%', background: confCol }} /></div>
+        </div>
+        {series && <Sparkline series={series} metric={metric} baseline={baseline} />}
+        <div style={{ display: 'flex', gap: 18, marginTop: 16, alignItems: 'flex-end' }}>
+          <div className="statchip"><span className="k">Actions</span><span className="v tnum">{actions}</span></div>
+          <div className="statchip"><span className="k">Re-plans</span><span className="v tnum" style={{ color: replans ? '#f4c25a' : undefined }}>{replans}</span></div>
+          <div className="statchip" style={{ marginLeft: 'auto' }}><span className="k">State</span>
+            <span className="coh"><span className="cd" style={{ background: cohCol, boxShadow: `0 0 7px ${cohCol}` }} />{coherence === 'reconciling' ? 'reconciling' : 'coherent'}</span>
           </div>
         </div>
-        <div class="graph-legend">
-          <span class="lg"><i style="background:var(--mute)"></i> PENDING</span>
-          <span class="lg"><i style="background:var(--nerve);box-shadow:0 0 7px var(--nerve)"></i> ACTIVE</span>
-          <span class="lg"><i style="background:var(--vital);box-shadow:0 0 7px var(--vital)"></i> COMPLETED</span>
-          <span class="lg"><i style="background:var(--caution);box-shadow:0 0 7px var(--caution)"></i> RETRYING</span>
-          <span class="lg"><i style="background:var(--alert);box-shadow:0 0 7px var(--alert)"></i> FAILED</span>
-        </div>
-      </section>
+      </div>
 
-      <div class="rail">
-        <section id="riskPanel" class="panel rise-3">
-          <div class="panel-head"><span class="ph-accent"></span> RISK ASSESSMENT</div>
-          <div class="risk-body">
-            <div class="gauge-wrap">
-              <svg viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(120,160,200,.1)" stroke-width="9" />
-                <circle id="riskArc" cx="60" cy="60" r="52" fill="none" stroke="var(--vital)" stroke-width="9"
-                        stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73" />
-                <circle id="riskDot" cx="112" cy="60" r="5" fill="var(--vital)" />
-              </svg>
-              <div class="gauge-center">
-                <div id="riskNum">—</div>
-                <div id="riskLabel">NO DATA</div>
+      <div className="panel">
+        <div className="panel-hd"><span className="ttl">Agents</span><span className="eyebrow">via orchestrator</span></div>
+        <div className="hub-wrap">
+          <AgentHub activeAgent={activeAgent} fireKey={fireKey} agents={agents} />
+          <div className="agent-legend">
+            {agents.map(a => (
+              <div className="agent-row" key={a.id} data-active={activeAgent === a.id}>
+                <span className="ad" style={{ background: a.color, boxShadow: activeAgent === a.id ? `0 0 8px ${a.color}` : 'none' }} />
+                <span className="an">{a.name}</span>
+                <span className="as">{a.role}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+window.Vitals = Vitals;
+
+</script>
+<script type="text/babel" data-source="MissionGraph.jsx">
+/* NERVE — Mission graph. Nodes light up; signals fire down edges. */
+
+function edgePath(s, t) {
+  const dx = t.x - s.x;
+  const c = Math.max(40, Math.abs(dx) * 0.5);
+  return `M ${s.x} ${s.y} C ${s.x + c} ${s.y} ${t.x - c} ${t.y} ${t.x} ${t.y}`;
+}
+
+function MissionGraph({ mission, nodeStates, fireKey, activeNode, tension }) {
+  const stageRef = React.useRef(null);
+  const [dim, setDim] = React.useState({ w: 760, h: 460 });
+
+  React.useEffect(() => {
+    const el = stageRef.current;
+    const ro = new ResizeObserver(() => {
+      setDim({ w: el.clientWidth, h: el.clientHeight });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const px = (n) => ({ x: (n.x / 100) * dim.w, y: (n.y / 100) * dim.h });
+  const byId = {};
+  mission.nodes.forEach(n => byId[n.id] = n);
+
+  const visible = (id) => {
+    const st = nodeStates[id] || 'pending';
+    const node = byId[id];
+    if (st === 'hidden') return false;
+    if (node && node.chaos && st === 'pending') return false;
+    return true;
+  };
+
+  const allEdges = [...mission.edges, ...(mission.chaosEdges || [])];
+
+  return (
+    <div className="graph-stage" ref={stageRef} data-tension={tension ? 'high' : 'low'}>
+      <svg className="graph-svg" viewBox={`0 0 ${dim.w} ${dim.h}`} preserveAspectRatio="none">
+        <defs>
+          <filter id="edgeglow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        {allEdges.map(([a, b], i) => {
+          if (!visible(a) || !visible(b)) return null;
+          const s = px(byId[a]), t = px(byId[b]);
+          const sState = nodeStates[a] || 'pending';
+          const tState = nodeStates[b] || 'pending';
+          const d = edgePath(s, t);
+          const lit = sState === 'done' || sState === 'alert';
+          const targetActive = tState === 'active' || tState === 'approval' || tState === 'alert';
+          let col = 'rgba(120,200,190,0.13)';
+          if (lit) col = '#2f6f66';
+          if (lit && targetActive) {
+            if (tState === 'approval') col = '#8a6d2e';
+            else if (tState === 'alert') col = '#8a3b3f';
+            else col = '#3fe0c5';
+          }
+          return (
+            <path key={a + b} d={d} fill="none" stroke={col}
+              strokeWidth={lit ? 1.5 : 1}
+              style={{ transition: 'stroke .4s, stroke-width .4s' }} />
+          );
+        })}
+        {/* traveling pulse on edges leading into the active node */}
+        {activeNode && allEdges.filter(([a, b]) => b === activeNode && visible(a) && visible(b) && (nodeStates[a] === 'done' || nodeStates[a] === 'alert'))
+          .map(([a, b]) => {
+            const s = px(byId[a]), t = px(byId[b]);
+            const d = edgePath(s, t);
+            const st = nodeStates[b];
+            const col = st === 'approval' ? '#f4c25a' : st === 'alert' ? '#ff6a72' : '#3fe0c5';
+            return (
+              <g key={fireKey + a + b}>
+                <circle r="3.2" fill={col} style={{ filter: `drop-shadow(0 0 5px ${col})` }}>
+                  <animateMotion dur="0.65s" fill="freeze" path={d} />
+                  <animate attributeName="opacity" from="1" to="0.2" dur="0.65s" fill="freeze" />
+                </circle>
+              </g>
+            );
+          })}
+      </svg>
+
+      {mission.nodes.map(n => {
+        if (!visible(n.id)) return null;
+        const st = nodeStates[n.id] || 'pending';
+        const p = { left: n.x + '%', top: n.y + '%' };
+        const agentColor = window.NERVE.AGENT_COLOR[n.agent] || '#5d6e6c';
+        return (
+          <div key={n.id} className={'gnode' + (n.chaos ? ' chaos-born' : '')} data-state={st} style={p}>
+            <div className="gn-top">
+              <Icon name={n.icon} className="gn-ic" />
+              <span className="gn-agent" style={{ color: (st === 'active' || st === 'approval' || st === 'alert') ? agentColor : undefined }}>
+                {n.agent === 'orchestrator' ? 'HUMAN' : n.agent}
+              </span>
+            </div>
+            <div className="gn-label">{n.label}</div>
+            <div className="gn-status"><i /></div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+window.MissionGraph = MissionGraph;
+
+</script>
+<script type="text/babel" data-source="EventFeed.jsx">
+/* NERVE — Live event feed with token-streaming on the newest line. */
+
+function stripTags(html) {
+  return html.replace(/<[^>]+>/g, '');
+}
+
+function EventFeed({ events }) {
+  const ref = React.useRef(null);
+  const [typed, setTyped] = React.useState({ seq: -1, len: 0, done: true });
+  const timerRef = React.useRef(null);
+
+  const last = events[events.length - 1];
+
+  // start a typewriter pass whenever a new last-event arrives
+  React.useEffect(() => {
+    if (!last) return;
+    if (last.seq === typed.seq) return;
+    clearInterval(timerRef.current);
+    const plain = stripTags(last.text);
+    const step = Math.max(1, Math.ceil(plain.length / 40));
+    setTyped({ seq: last.seq, len: 0, done: false });
+    timerRef.current = setInterval(() => {
+      setTyped(prev => {
+        const nl = prev.len + step;
+        if (nl >= plain.length) { clearInterval(timerRef.current); return { seq: last.seq, len: plain.length, done: true }; }
+        return { ...prev, len: nl };
+      });
+    }, 18);
+    return () => clearInterval(timerRef.current);
+  }, [last && last.seq]); // eslint-disable-line
+
+  React.useEffect(() => {
+    const el = ref.current; if (el) el.scrollTop = el.scrollHeight;
+  }, [events.length, typed.len]);
+
+  return (
+    <>
+      <div className="panel-hd" style={{ padding: '18px 20px 12px', margin: 0, borderBottom: '1px solid var(--line)' }}>
+        <span className="ttl">Reasoning feed</span>
+        <span className="eyebrow">{events.length} events</span>
+      </div>
+      <div className="feed" ref={ref}>
+        {events.length === 0 && (
+          <div className="feed-empty">Awaiting a goal…</div>
+        )}
+        {events.map((e) => {
+          const col = window.NERVE.AGENT_COLOR[e.agent] || '#5d6e6c';
+          const name = e.agent === 'orchestrator' ? 'Orchestrator' : e.agent[0].toUpperCase() + e.agent.slice(1);
+          const isLast = last && e.seq === last.seq;
+          const typing = isLast && typed.seq === e.seq && !typed.done;
+          return (
+            <div className="evt" data-kind={e.kind} key={e.seq}>
+              <div className="evt-rail"><span className="line" /><span className="dot" /></div>
+              <div className="evt-body">
+                <div className="evt-meta">
+                  <span className="evt-agent" style={{ color: col }}>{name}</span>
+                  <span className="evt-time tnum">{e.time}</span>
+                </div>
+                {typing
+                  ? <div className="evt-text">{stripTags(e.text).slice(0, typed.len)}<span className="caret" /></div>
+                  : <div className="evt-text" dangerouslySetInnerHTML={{ __html: e.text }} />}
+                {e.tool && !typing && <div className="evt-tool"><span className="tg" />{e.tool}</div>}
               </div>
             </div>
-            <div id="riskBreakdown"></div>
-          </div>
-        </section>
-
-        <section id="approvalsCard" class="panel rise-3">
-          <div class="panel-head"><span class="ph-accent"></span> PENDING APPROVALS <span class="spacer"></span>
-            <span class="chip" id="approvalCount">0</span></div>
-          <div id="actions" class="approvals-list"></div>
-        </section>
-
-        <section id="failuresCard" class="panel rise-4">
-          <div class="panel-head"><span class="ph-accent"></span> ACTIVE FAILURES</div>
-          <div id="failures" class="failures-list"></div>
-        </section>
+          );
+        })}
       </div>
-    </main>
+    </>
+  );
+}
 
-    <!-- Activity feed -->
-    <section id="feedPanel" class="panel rise-4">
-      <div class="panel-head"><span class="ph-accent"></span> AGENT ACTIVITY · LIVE TELEMETRY <span class="spacer"></span>
-        <span class="eyebrow" style="color:var(--mute)">EVENT STREAM</span></div>
-      <ul id="feed" class="feed" style="list-style:none;margin:0;"></ul>
-    </section>
-  </div>
-  </div><!-- /#app -->
+window.EventFeed = EventFeed;
 
-  <!-- The dashboard client is inline because the backend serves only this HTML
-       (no /static mount). dashboard/static/main.js mirrors this script. -->
-  <script>
-    "use strict";
-    const POLL_FALLBACK_MS = 10000;   // used only while the WebSocket is down
-    const RECONNECT_MAX_MS = 30000;
-    const FEED_NOISE = new Set(["MCP_TOOL_CALLED", "MCP_TOOL_RESULT", "RESOLUTION_CHECK"]);
-    const RISK_C = 326.73;            // 2π·52
-    const ROLE_ABBR = { planner: "PLAN", execution: "EXEC", risk: "RISK", auditor: "AUDT" };
+</script>
+<script type="text/babel" data-source="Approval.jsx">
+/* NERVE — Approval moment: dashboard dock card + Telegram phone mirror */
 
-    let missionId = new URLSearchParams(location.search).get("mission");
-    let currentMission = null, failures = [], lastTasks = [];
-    let ws = null, wsAttempts = 0, wsReconnectTimer = null;
-    let pollFallbackTimer = null, elapsedTimer = null, derivedTimer = null, derivedNeeds = new Set();
+function ImpactViz({ impact }) {
+  if (!impact) return null;
+  if (impact.kind === 'pods') {
+    return (
+      <div className="ac-impact">
+        <div className="ai-top"><span className="ai-lbl">Blast radius — {impact.label}</span><span className="ai-sub">{impact.sub}</span></div>
+        <div className="ac-pods">
+          {Array.from({ length: impact.total }).map((_, i) => (
+            <i key={i} className={i < impact.hit ? 'hit' : ''} style={{ animationDelay: (i * 28) + 'ms' }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (impact.kind === 'cost') {
+    return (
+      <div className="ac-impact">
+        <div className="ai-top"><span className="ai-lbl">{impact.label}</span><span className="ai-sub">{impact.sub}</span></div>
+        <div className="ac-cost">
+          <span className="acc-amt">{impact.amount}</span>
+          <span className="acc-meta">Placed as a temporary hold.<br/>Released automatically if unused.</span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
 
-    /* ───────── known-mission registry (localStorage; no list API exists) ───────── */
-    function getKnown() { try { return JSON.parse(localStorage.getItem("nerve_missions") || "[]"); } catch { return []; } }
-    function addKnown(id, type) {
-      const list = getKnown().filter((m) => m.id !== id);
-      list.unshift({ id, type: type || "?" });
-      localStorage.setItem("nerve_missions", JSON.stringify(list.slice(0, 25)));
-      renderSelect();
-    }
-    function renderSelect() {
-      const known = getKnown();
-      const cur = known.find((m) => m.id === missionId);
-      const label = document.getElementById("missionDdLabel");
-      if (cur) label.innerHTML = `${escapeHtml(cur.type)} · <span class="dd-id">${escapeHtml(cur.id.slice(0, 8))}</span>`;
-      else label.textContent = "— mission —";
-      const items = [`<li role="option" class="dd-item placeholder ${missionId ? "" : "sel"}" onclick="ddPick('')">— mission —</li>`];
-      known.forEach((m) => {
-        const sel = m.id === missionId ? "sel" : "";
-        items.push(`<li role="option" class="dd-item ${sel}" onclick="ddPick('${escapeHtml(m.id)}')">${escapeHtml(m.type)} · <span class="dd-id">${escapeHtml(m.id.slice(0, 8))}</span></li>`);
-      });
-      items.push(`<li role="option" class="dd-item action" onclick="ddPick('__launch__')">+ NEW / LINK…</li>`);
-      document.getElementById("missionDdMenu").innerHTML = items.join("");
-    }
-    function toggleDd(e) { if (e) e.stopPropagation(); document.getElementById("missionDd").classList.contains("open") ? closeDd() : openDd(); }
-    function openDd() {
-      document.getElementById("missionDd").classList.add("open");
-      document.getElementById("missionDdMenu").classList.remove("hidden");
-      document.getElementById("missionDdBtn").setAttribute("aria-expanded", "true");
-    }
-    function closeDd() {
-      document.getElementById("missionDd").classList.remove("open");
-      document.getElementById("missionDdMenu").classList.add("hidden");
-      document.getElementById("missionDdBtn").setAttribute("aria-expanded", "false");
-    }
-    function ddPick(v) { closeDd(); if (v === "__launch__") { showLaunch(); return; } if (v) boot(v); }
-    document.addEventListener("click", (e) => { const dd = document.getElementById("missionDd"); if (dd && !dd.contains(e.target)) closeDd(); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDd(); });
+function ApprovalDock({ approval, onApprove, onReject }) {
+  return (
+    <div className="approval-dock">
+      <div className="appcard">
+        <div className="ac-top">
+          <span className="ac-badge"><span className="ping" />Approval required</span>
+        </div>
+        <h3 className="ac-title">{approval.title}</h3>
+        <div className="ac-detail" dangerouslySetInnerHTML={{ __html: approval.detail }} />
+        <ImpactViz impact={approval.impact} />
+        <div className="ac-rows">
+          {approval.rows.map(([k, v], i) => (
+            <div className="ac-r" key={i}><span className="k">{k}</span><span className="v">{v}</span></div>
+          ))}
+        </div>
+        <div className="ac-btns">
+          <button className="ac-btn reject" onClick={onReject}>{approval.reject}</button>
+          <button className="ac-btn approve" onClick={onApprove}>{approval.approve}</button>
+        </div>
+        <div className="ac-hint">
+          <CtrlIcon name="phone" />
+          Also sent to your phone · one-tap on Telegram
+        </div>
+      </div>
+    </div>
+  );
+}
 
-    /* ───────── view switching + lifecycle ───────── */
-    function setQuery(id) { history.replaceState(null, "", id ? `?mission=${id}` : location.pathname); }
-    function showLaunch() {
-      stopAll(); missionId = null; setQuery(null); renderSelect(); setConn(false, "offline");
-      document.getElementById("missionView").classList.add("hidden");
-      document.getElementById("launchView").classList.remove("hidden");
-    }
-    function showMission() {
-      document.getElementById("launchView").classList.add("hidden");
-      document.getElementById("missionView").classList.remove("hidden");
-    }
-    function stopAll() {
-      if (elapsedTimer) clearInterval(elapsedTimer);
-      if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
-      if (derivedTimer) clearTimeout(derivedTimer);
-      elapsedTimer = wsReconnectTimer = derivedTimer = null;
-      stopPollFallback(); closeWS();
-    }
-    function boot(id) {
-      stopAll();
-      missionId = id; setQuery(id); renderSelect(); showMission();
-      wsAttempts = 0; failures = [];
-      fetchState();                                  // one full render to seed all panels
-      connectWS();                                   // then live updates over WebSocket
-      elapsedTimer = setInterval(updateElapsed, 1000);
-    }
+function TelegramPhone({ open, approval, status, onApprove, onReject, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="phone">
+      <button className="phone-close" onClick={onClose}>✕</button>
+      <div className="phone-screen">
+        <div className="tg-bar">
+          <div className="tg-av">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#06090b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 1.4l5 1.8v4c0 3.4-2.2 5.8-5 7.2-2.8-1.4-5-3.8-5-7.2v-4z" />
+              <path d="M5.6 8.2l1.7 1.7 3-3.4" />
+            </svg>
+          </div>
+          <div>
+            <div className="tg-nm">NERVE</div>
+            <div className="tg-sub">bot · online</div>
+          </div>
+        </div>
+        <div className="tg-body">
+          {status === 'pending' && approval && (
+            <div className="tg-bubble">
+              <div className="tgb-h"><span style={{ width: 6, height: 6, borderRadius: 9, background: '#f4c25a', display: 'inline-block' }} />Approval needed</div>
+              <div className="tgb-t">{approval.title}</div>
+              <div className="tgb-d" dangerouslySetInnerHTML={{ __html: approval.detail.replace(/<span class="[^"]*">/g, '').replace(/<\/span>/g, '') }} />
+              <div className="tgb-btns">
+                <div className="tgb-b n" onClick={onReject}>{approval.reject}</div>
+                <div className="tgb-b y" onClick={onApprove}>✓ {approval.approve}</div>
+              </div>
+              <div className="tg-time">now</div>
+            </div>
+          )}
+          {status === 'approved' && (
+            <div className="tg-bubble">
+              <div className="tgb-h" style={{ color: '#46d39a' }}><span style={{ width: 6, height: 6, borderRadius: 9, background: '#46d39a', display: 'inline-block' }} />Approved by you</div>
+              <div className="tgb-d" style={{ margin: 0 }}>Executing now — I'll report back when it's done.</div>
+              <div className="tg-time">now ✓✓</div>
+            </div>
+          )}
+          {status === 'rejected' && (
+            <div className="tg-bubble">
+              <div className="tgb-h" style={{ color: '#ff6a72' }}><span style={{ width: 6, height: 6, borderRadius: 9, background: '#ff6a72', display: 'inline-block' }} />Held</div>
+              <div className="tgb-d" style={{ margin: 0 }}>Standing down. No action taken — your call.</div>
+              <div className="tg-time">now</div>
+            </div>
+          )}
+          {status === 'idle' && (
+            <div className="tg-resolved">No pending approvals. You'll be pinged here.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-    /* ───────── WebSocket transport (logic unchanged) ───────── */
-    function wsUrl() { const proto = location.protocol === "https:" ? "wss" : "ws"; return `${proto}://${location.host}/ws/${missionId}`; }
-    function connectWS() {
-      closeWS();
-      let socket;
-      try { socket = new WebSocket(wsUrl()); } catch { scheduleReconnect(); return; }
-      ws = socket;
-      socket.onopen = () => { setConn(true); wsAttempts = 0; stopPollFallback(); };
-      socket.onmessage = (m) => { try { handleEvent(JSON.parse(m.data)); } catch { /* ignore bad frame */ } };
-      socket.onerror = () => { try { socket.close(); } catch {} };
-      socket.onclose = () => { if (ws !== socket) return; ws = null; setConn(false); startPollFallback(); scheduleReconnect(); };
-    }
-    function closeWS() { if (!ws) return; ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; try { ws.close(); } catch {} ws = null; }
-    function scheduleReconnect() {
-      if (wsReconnectTimer || !missionId) return;
-      const delay = Math.min(RECONNECT_MAX_MS, 1000 * Math.pow(2, wsAttempts)); wsAttempts++;
-      setConn(false, `reconnect ${Math.round(delay / 1000)}s`);
-      wsReconnectTimer = setTimeout(() => { wsReconnectTimer = null; connectWS(); }, delay);
-    }
-    function startPollFallback() { if (pollFallbackTimer) return; fetchState(); pollFallbackTimer = setInterval(fetchState, POLL_FALLBACK_MS); }
-    function stopPollFallback() { if (pollFallbackTimer) clearInterval(pollFallbackTimer); pollFallbackTimer = null; }
-    function setConn(connected, text) {
-      const dot = document.getElementById("connDot"), label = document.getElementById("connText");
-      if (connected) { dot.className = "glow-dot on"; label.textContent = "LINKED"; label.className = "conn-text linked"; }
-      else { dot.className = "glow-dot off"; label.textContent = (text ? text : "reconnecting").toUpperCase(); label.className = "conn-text down"; }
-    }
+window.ApprovalDock = ApprovalDock;
+window.TelegramPhone = TelegramPhone;
 
-    /* ───────── incremental updates from a single event (dispatch unchanged) ───────── */
-    function handleEvent(ev) {
-      prependFeed(ev);
-      switch (ev.event_type) {
-        case "MISSION_STATUS_CHANGED":
-          if (currentMission && ev.payload && ev.payload.to) {
-            currentMission.status = ev.payload.to;
-            if (["resolved", "failed"].includes(ev.payload.to)) currentMission.updated_at = ev.created_at;
-            renderStatusBar(currentMission);
-          }
-          break;
-        case "RISK_SCORE_UPDATED":
-          if (ev.payload) renderRisk(ev.payload.overall, ev.payload.breakdown);
-          break;
-        case "FAILURE_INJECTED":
-          if (ev.payload && ev.payload.type) { failures.push({ type: ev.payload.type, target: ev.payload.target, severity: ev.payload.severity }); renderFailures(failures); }
-          break;
-        case "FAILURE_CLEARED":
-          if (ev.payload && ev.payload.type) { failures = failures.filter((f) => f.type !== ev.payload.type); renderFailures(failures); }
-          break;
-        case "ACTION_CREATED": case "ACTION_APPROVED": case "ACTION_REJECTED": case "ACTION_EXECUTED":
-          scheduleDerivedRefresh("actions"); break;
-        case "TASK_STARTED": case "TASK_COMPLETED": case "TASK_FAILED": case "TASK_RETRYING":
-          if (ev.task_id) fireNeuron(ev.task_id);
-          scheduleDerivedRefresh("tasks"); break;
+</script>
+<script type="text/babel" data-source="live-app.jsx">
+/* ============================================================
+   NERVE — LIVE dashboard (SP1)
+   Same component tree as the scripted showcase, but every surface
+   is driven by the real backend: POST /missions · GET /demo/start ·
+   GET /missions/{id} · WebSocket /ws/{id} · /actions/{id}/approve|reject ·
+   /failure/inject. Memory / sparkline / blast stay empty (SP2/SP3).
+   ============================================================ */
+const { useState, useRef, useEffect, useCallback } = React;
+const L = window.NERVE_LIVE;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "autoChaos": false,
+  "phoneDefault": false,
+  "sound": false
+}/*EDITMODE-END*/;
+
+function bandColor(r) {
+  if (r < 22) return '#46d39a';
+  if (r < 50) return '#3fe0c5';
+  if (r < 72) return '#f4c25a';
+  return '#ff6a72';
+}
+function clock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+const STATE_EVENTS = new Set([
+  'TASK_STARTED', 'TASK_COMPLETED', 'TASK_FAILED', 'TASK_RETRYING',
+  'MISSION_STATUS_CHANGED', 'ACTION_CREATED', 'ACTION_APPROVED', 'ACTION_REJECTED',
+  'ACTION_EXECUTED', 'DEMO_APPROVAL_REQUESTED', 'REPLAN_TRIGGERED',
+  'RISK_SCORE_UPDATED', 'FAILURE_INJECTED', 'FAILURE_CLEARED', 'RESEARCH_SYNTHESIZED',
+]);
+const POLL_MS = 4000;
+
+function App() {
+  const [view, setView] = useState('incident');
+  const preset = window.NERVE.MISSIONS[view];
+
+  const [stage, setStage] = useState('idle');         // idle | launching | running
+  const [graph, setGraph] = useState({ nodes: [], edges: [] });
+  const [nodeStates, setNodeStates] = useState({});
+  const [events, setEvents] = useState([]);
+  const [phase, setPhase] = useState('Ready');
+  const [status, setStatus] = useState('pending');
+  const [targetRisk, setTargetRisk] = useState(6);
+  const [dispRisk, setDispRisk] = useState(6);
+  const [activeAgent, setActiveAgent] = useState(null);
+  const [activeNode, setActiveNode] = useState(null);
+  const [fireKey, setFireKey] = useState(0);
+  const [actions, setActions] = useState(0);
+  const [replans, setReplans] = useState(0);
+  const [approval, setApproval] = useState(null);
+  const [done, setDone] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [phoneStatus, setPhoneStatus] = useState('idle');
+  const [connected, setConnected] = useState(false);
+
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const ids = useRef({ incident: null, research: null });
+  const sock = useRef(null);
+  const pollRef = useRef(null);
+  const reconnRef = useRef(null);
+  const seen = useRef(new Set());
+  const seenTypes = useRef(new Set());
+  const seqRef = useRef(0);
+  const startRef = useRef(0);
+  const startedRef = useRef(false);
+  const viewRef = useRef(view); viewRef.current = view;
+  const riskRef = useRef(6);
+  const counts = useRef({ actions: 0, replans: 0 });
+  const fetchTimer = useRef(null);
+  const autoPhone = useRef(false);
+
+  /* ---- eased risk ---- */
+  useEffect(() => {
+    let raf, last;
+    const loop = (ts) => {
+      if (!last) last = ts;
+      const dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+      riskRef.current += (targetRisk - riskRef.current) * Math.min(1, dt * 3.2);
+      setDispRisk(p => (Math.abs(riskRef.current - p) > 0.4 ? riskRef.current : p));
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [targetRisk]);
+
+  useEffect(() => {
+    NerveAudio.enabled = !!t.sound;
+    if (t.sound) { const c = NerveAudio.ensure(); if (c && c.state === 'suspended') c.resume(); }
+  }, [t.sound]);
+
+  /* ---- teardown helpers ---- */
+  const closeSock = useCallback(() => {
+    clearTimeout(reconnRef.current); clearInterval(pollRef.current); clearTimeout(fetchTimer.current);
+    if (sock.current) { try { sock.current.onclose = null; sock.current.close(); } catch (e) {} sock.current = null; }
+    setConnected(false);
+  }, []);
+
+  const resetRender = useCallback(() => {
+    seen.current = new Set(); seenTypes.current = new Set(); seqRef.current = 0; counts.current = { actions: 0, replans: 0 };
+    startRef.current = 0; startedRef.current = false;
+    setGraph({ nodes: [], edges: [] }); setNodeStates({}); setEvents([]);
+    setPhase('Ready'); setStatus('pending'); setTargetRisk(6); riskRef.current = 6; setDispRisk(6);
+    setActiveAgent(null); setActiveNode(null); setFireKey(0);
+    setActions(0); setReplans(0); setApproval(null); setDone(false); setPhoneStatus('idle'); autoPhone.current = false;
+  }, []);
+
+  /* ---- apply a full backend state snapshot ---- */
+  const applyState = useCallback((data) => {
+    if (!data || !data.mission) return;
+    /* seed feed once (also fills seenTypes) BEFORE deriving the graph */
+    if (!startedRef.current && data.recent_events && data.recent_events.length) {
+      [...data.recent_events].reverse().forEach(ingestRaw);
+    }
+    const st = data.mission.status;
+    const resolved = L.isTerminal(st);
+    const tasks = data.tasks || [];
+    if (tasks.length) {
+      setGraph(L.buildGraph(tasks));
+      const ns = {}; tasks.forEach(tk => { ns[tk.task_id] = L.nodeStateFor(tk.status); }); setNodeStates(ns);
+      const inProg = tasks.find(tk => tk.status === 'in_progress' || tk.status === 'retrying');
+      setActiveNode(inProg ? inProg.task_id : null);
+    } else {
+      /* no task rows (e.g. the scripted incident demo) → light a milestone graph from real events */
+      const mg = L.buildMilestoneGraph(seenTypes.current, resolved);
+      setGraph({ nodes: mg.nodes, edges: mg.edges }); setNodeStates(mg.nodeStates);
+      const act = mg.nodes.find(n => mg.nodeStates[n.id] === 'active');
+      setActiveNode(act ? act.id : null);
+    }
+    if (typeof data.risk === 'number') setTargetRisk(Math.round(data.risk * 100));
+    setStatus(st); setPhase(L.mapPhase(st)); setDone(resolved);
+    const pa = (data.pending_actions || [])[0];
+    setApproval(pa ? L.actionToApproval(pa) : null);
+    if (pa) {
+      setPhoneStatus('pending');
+      setPhoneOpen(o => { if (!o) autoPhone.current = true; return true; });
+    } else {
+      setPhoneStatus(s => (s === 'pending' ? 'idle' : s));
+      if (autoPhone.current && !t.phoneDefault) { autoPhone.current = false; setPhoneOpen(false); }
+    }
+  }, [t.phoneDefault]); // ingestRaw referenced via closure (stable useCallback)
+
+  /* ---- ingest one raw backend event ---- */
+  const ingestRaw = useCallback((ev) => {
+    if (!ev || !ev.event_id || seen.current.has(ev.event_id)) return;
+    seen.current.add(ev.event_id);
+    if (ev.event_type) seenTypes.current.add(ev.event_type);
+    if (ev.event_type === 'REPLAN_TRIGGERED') { counts.current.replans += 1; setReplans(counts.current.replans); }
+    if (ev.event_type === 'ACTION_EXECUTED' || ev.event_type === 'TASK_COMPLETED') { counts.current.actions += 1; setActions(counts.current.actions); }
+    const item = L.translateEvent(ev);
+    if (!item) return;
+    if (!startRef.current) startRef.current = ev.created_at ? Date.parse(ev.created_at) : Date.now();
+    seqRef.current += 1;
+    const tms = ev.created_at ? Date.parse(ev.created_at) : Date.now();
+    const row = { ...item, seq: seqRef.current, time: clock(tms - startRef.current) };
+    setEvents(prev => [...prev, row]);
+    setActiveAgent(item.agent); setFireKey(k => k + 1);
+    if (item.kind === 'alert') NerveAudio.play('alert');
+    if (item.kind === 'approval') NerveAudio.play('approve');
+  }, []);
+
+  const scheduleFetch = useCallback((id) => {
+    clearTimeout(fetchTimer.current);
+    fetchTimer.current = setTimeout(() => {
+      L.Api.getState(id).then(applyState).catch(() => {});
+    }, 260);
+  }, [applyState]);
+
+  /* ---- connect WS + poll for a mission id ---- */
+  const connect = useCallback((id) => {
+    closeSock();
+    L.Api.getState(id).then(applyState).catch(() => {});
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    try { sock.current = new WebSocket(`${proto}://${location.host}/ws/${id}`); }
+    catch (e) { return; }
+    sock.current.onopen = () => setConnected(true);
+    sock.current.onmessage = (m) => {
+      let ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
+      ingestRaw(ev);
+      if (STATE_EVENTS.has(ev.event_type)) scheduleFetch(id);
+      startedRef.current = true;
+    };
+    sock.current.onclose = () => {
+      setConnected(false);
+      if (viewRef.current && ids.current[viewRef.current] === id) {
+        reconnRef.current = setTimeout(() => connect(id), 1800);
       }
-    }
-    function scheduleDerivedRefresh(which) {
-      derivedNeeds.add(which);
-      if (derivedTimer) return;
-      derivedTimer = setTimeout(async () => {
-        derivedTimer = null;
-        const needs = derivedNeeds; derivedNeeds = new Set();
-        if (!missionId) return;
-        try {
-          const res = await fetch(`/missions/${missionId}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (needs.has("actions")) renderActions(data.pending_actions || []);
-          if (needs.has("tasks")) renderTasks(data.tasks || []);
-        } catch { /* transient */ }
-      }, 300);
-    }
+    };
+    pollRef.current = setInterval(() => L.Api.getState(id).then(applyState).catch(() => {}), POLL_MS);
+  }, [applyState, ingestRaw, scheduleFetch, closeSock]);
 
-    /* ───────── full state fetch (initial seed + disconnected fallback) ───────── */
-    async function fetchState() {
-      if (!missionId) return;
-      let data;
-      try {
-        const res = await fetch(`/missions/${missionId}`);
-        if (!res.ok) { setStatusBadge(res.status === 404 ? "not found" : "error " + res.status); return; }
-        data = await res.json();
-      } catch { return; }
-      currentMission = data.mission;
-      failures = (data.active_failures || []).slice();
-      renderStatusBar(data.mission);
-      renderRisk(data.risk, data.risk_breakdown);
-      renderActions(data.pending_actions || []);
-      renderFailures(failures);
-      renderFeed(data.recent_events || []);
-      renderTasks(data.tasks || []);
-    }
+  /* ---- view change: show that preset's mission or the front door ---- */
+  useEffect(() => {
+    closeSock(); resetRender();
+    const id = ids.current[view];
+    if (id) { setStage('running'); startedRef.current = false; connect(id); }
+    else { setStage('idle'); }
+    setPhoneOpen(!!t.phoneDefault);
+    return () => closeSock();
+  }, [view]); // eslint-disable-line
 
-    /* ───────── launchers ───────── */
-    function setLoading(btn, txt) { if (!btn) return; btn.dataset.orig = btn.dataset.orig || btn.textContent; btn.disabled = true; btn.textContent = txt; }
-    function resetButton(btn) { if (!btn) return; btn.disabled = false; if (btn.dataset.orig) btn.textContent = btn.dataset.orig; }
-    function launchMsg(t, err) { const el = document.getElementById("launchMsg"); el.textContent = t; el.style.color = err ? "var(--alert)" : "var(--vital)"; }
+  /* ---- launch a mission from the front door ---- */
+  const launch = useCallback(async (presetId, text) => {
+    const m = window.NERVE.MISSIONS[presetId];
+    setStage('launching'); setPhase('Planning'); setActiveAgent('planner');
+    try {
+      const res = m.launch === 'demo' ? await L.Api.startDemo() : await L.Api.createMission(text, m.mission_type);
+      const id = res && res.mission_id;
+      if (!id) { setStage('idle'); return; }
+      ids.current[presetId] = id; L.addKnown(id, m.mission_type);
+      if (viewRef.current !== presetId) { setView(presetId); return; }
+      resetRender(); setStage('running'); connect(id);
+    } catch (e) { setStage('idle'); }
+  }, [connect, resetRender]);
 
-    async function launchMission() {
-      const goal = document.getElementById("goalInput").value.trim();
-      if (!goal) return launchMsg("Enter a mission goal first.", true);
-      const btn = document.getElementById("launchBtn"); setLoading(btn, "INITIALIZING…");
-      try {
-        const res = await fetch("/missions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, mission_type: "GENERAL" }) });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data = await res.json(); addKnown(data.mission_id, "GENERAL"); boot(data.mission_id);
-      } catch (e) { launchMsg("Launch failed: " + e.message, true); resetButton(btn); }
-    }
-    async function startDemo() {
-      const btn = document.getElementById("demoBtn") || document.getElementById("demoBtnLaunch"); setLoading(btn, "INITIALIZING…");
-      try {
-        const res = await fetch("/demo/start");
-        if (!res.ok) throw new Error(res.status === 403 ? "DEMO_MODE is not enabled on the server." : "HTTP " + res.status);
-        const data = await res.json();
-        if (data.mission_id) { addKnown(data.mission_id, "INCIDENT_RESPONSE"); resetButton(btn); boot(data.mission_id); return; }
-        resetButton(btn); launchMsg("Demo started — link by mission_id from the server log.", false); showLaunch();
-      } catch (e) { resetButton(btn); showLaunch(); launchMsg("Could not start demo: " + e.message, true); }
-    }
-    function loadById() {
-      const id = document.getElementById("missionIdInput").value.trim();
-      if (!id) return launchMsg("Enter a mission_id.", true);
-      addKnown(id, "?"); boot(id);
-    }
+  /* ---- approval handlers (real API) ---- */
+  const curId = () => ids.current[viewRef.current];
+  const onApprove = () => {
+    const a = approval; if (!a) return;
+    setApproval(null); setPhoneStatus('approved');
+    L.Api.approve(a.action_id).finally(() => scheduleFetch(curId()));
+  };
+  const onReject = () => {
+    const a = approval; if (!a) return;
+    NerveAudio.play('reject');
+    setApproval(null); setPhoneStatus('rejected');
+    L.Api.reject(a.action_id).finally(() => scheduleFetch(curId()));
+  };
+  const chaos = () => {
+    const id = curId(); if (!id) return;
+    L.Api.injectChaos(id).finally(() => scheduleFetch(id));
+  };
 
-    /* ───────── approvals ───────── */
-    async function approve(id) {
-      const who = prompt("Approve as:", "demo-operator"); if (!who) return;
-      await fetch(`/actions/${id}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approved_by: who }) });
-      scheduleDerivedRefresh("actions");
-    }
-    async function reject(id) {
-      const who = prompt("Reject as:", "demo-operator"); if (!who) return;
-      const reason = prompt("Reason:", "not the cause"); if (!reason) return;
-      await fetch(`/actions/${id}/reject`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approved_by: who, reason }) });
-      scheduleDerivedRefresh("actions");
-    }
+  const restart = () => { const id = curId(); if (id) { resetRender(); setStage('running'); startedRef.current = false; connect(id); } else resetRender(); };
 
-    /* ───────── status + vitals ───────── */
-    function setStatusBadge(text) { const b = document.getElementById("sbStatus"); b.textContent = text.toUpperCase(); b.className = "status-badge"; }
-    function setVCard(id, cls) { const el = document.getElementById(id); if (el) el.className = "vcard " + cls; }
-    function renderStatusBar(m) {
-      document.getElementById("sbId").textContent = m.mission_id.slice(0, 8);
-      document.getElementById("sbType").textContent = m.mission_type;
-      const b = document.getElementById("sbStatus"); b.textContent = m.status.toUpperCase(); b.className = "status-badge " + m.status;
-      const sv = document.getElementById("vStatusVal"); sv.textContent = m.status.toUpperCase(); sv.className = "s-" + m.status;
-      const active = ["planning", "executing", "replanning"].includes(m.status);
-      setVCard("vStatus", active ? "is-nerve rise-1" : m.status === "resolved" ? "is-vital rise-1" : m.status === "failed" ? "is-alert rise-1" : "rise-1");
-      updatePulse();
-      updateElapsed();
-    }
-    function updateElapsed() {
-      if (!currentMission) return;
-      const start = parseUTC(currentMission.created_at);
-      const terminal = ["resolved", "failed"].includes(currentMission.status);
-      const end = terminal ? parseUTC(currentMission.updated_at) : Date.now();
-      document.getElementById("vElapsed").textContent = "elapsed " + fmtElapsed(end - start);
-    }
-    function updatePulse() {
-      const card = document.getElementById("ecgCard"); if (!card) return;
-      const st = currentMission ? currentMission.status : "";
-      const risk = currentMission ? currentMission._risk : null;
-      let cls = "pulse-idle", label = "IDLE";
-      if (st === "failed" || (risk != null && risk >= 0.7)) { cls = "pulse-critical"; label = "CRITICAL"; }
-      else if (["planning", "executing", "replanning"].includes(st)) { cls = "pulse-active"; label = "ACTIVE"; }
-      else if (st === "resolved") { cls = "pulse-ok"; label = "STABLE"; }
-      card.className = "vcard ecg rise-4 " + cls;
-      document.getElementById("ecgState").textContent = label;
-    }
+  /* auto-chaos for an unattended demo */
+  useEffect(() => {
+    if (!t.autoChaos || stage !== 'running' || done || approval) return;
+    const h = setTimeout(chaos, 8000);
+    return () => clearTimeout(h);
+  }, [t.autoChaos, stage, done, approval]); // eslint-disable-line
 
-    /* ───────── risk instrument ───────── */
-    function riskColor(r) { return r >= 0.7 ? "#ff5d72" : r >= 0.4 ? "#ffb454" : "#56e39f"; }
-    function renderRisk(risk, breakdown) {
-      const arc = document.getElementById("riskArc"), num = document.getElementById("riskNum"),
-            lab = document.getElementById("riskLabel"), dot = document.getElementById("riskDot");
-      if (currentMission) currentMission._risk = (risk == null ? null : risk);
-      if (risk === null || risk === undefined) {
-        arc.style.strokeDashoffset = RISK_C; arc.style.stroke = "rgba(120,160,200,.12)";
-        dot.setAttribute("cx", 112); dot.setAttribute("cy", 60); dot.setAttribute("fill", "var(--faint)");
-        num.textContent = "—"; num.style.color = "var(--mute)"; lab.textContent = "NO SIGNAL";
-        document.getElementById("vRiskVal").textContent = "—"; document.getElementById("vRiskLabel").textContent = "no signal";
-        setVCard("vRisk", "rise-2"); renderBreakdown(breakdown); updatePulse(); return;
-      }
-      const clamped = Math.max(0, Math.min(1, risk)), c = riskColor(risk);
-      arc.style.strokeDashoffset = RISK_C * (1 - clamped); arc.style.stroke = c;
-      const ang = (360 * clamped) * Math.PI / 180;
-      dot.setAttribute("cx", (60 + 52 * Math.cos(ang)).toFixed(2));
-      dot.setAttribute("cy", (60 + 52 * Math.sin(ang)).toFixed(2));
-      dot.setAttribute("fill", c);
-      const level = risk >= 0.7 ? "CRITICAL" : risk >= 0.4 ? "ELEVATED" : "NOMINAL";
-      num.textContent = risk.toFixed(2); num.style.color = c; lab.textContent = level;
-      document.getElementById("vRiskVal").textContent = risk.toFixed(2);
-      document.getElementById("vRiskVal").style.color = c;
-      document.getElementById("vRiskLabel").textContent = level.toLowerCase();
-      setVCard("vRisk", (risk >= 0.7 ? "is-alert" : risk >= 0.4 ? "is-caution" : "is-vital") + " rise-2");
-      renderBreakdown(breakdown); updatePulse();
-    }
-    function renderBreakdown(bk) {
-      const el = document.getElementById("riskBreakdown");
-      const entries = bk && typeof bk === "object" ? Object.entries(bk).filter(([, v]) => typeof v === "number") : [];
-      if (!entries.length) { el.innerHTML = ""; return; }
-      el.innerHTML = entries.slice(0, 5).map(([k, v]) => {
-        const val = Math.max(0, Math.min(1, v));
-        return `<div class="bk"><span class="bk-k">${escapeHtml(k)}</span>
-          <span class="bk-bar"><span class="bk-fill" style="width:${Math.round(val * 100)}%;background:${riskColor(val)}"></span></span>
-          <span class="bk-v">${val.toFixed(2)}</span></div>`;
-      }).join("");
-    }
+  /* derived */
+  const band = bandColor(dispRisk);
+  const confidence = Math.max(2, Math.min(99, Math.round(100 - dispRisk)));
+  const ticking = stage === 'running' && !done && connected;
+  const coherence = status === 'replanning' ? 'reconciling' : 'coherent';
+  const mission = { ...preset, nodes: graph.nodes, edges: graph.edges, chaosEdges: [], approvalNode: null };
 
-    /* ───────── approvals + failures ───────── */
-    function actionDescription(a) {
-      const p = a.payload || {};
-      switch (a.action_type) {
-        case "gitlab_rollback": return `Roll back deployment ${p.deployment_id ?? "?"} (${p.sha || p.ref || "unknown"}) on ${p.environment || "production"} via rollback pipeline.`;
-        case "gitlab_issue": return "File a GitLab incident issue documenting the anomaly.";
-        case "gitlab_mr": return "Open a merge request to revert the change.";
-        case "dynatrace_query": return "Run a Dynatrace query for additional signal.";
-        case "human_approval_request": return "Manual approval requested before proceeding.";
-        default: return `Execute action: ${a.action_type}.`;
-      }
-    }
-    function renderActions(actions) {
-      document.getElementById("approvalCount").textContent = actions.length;
-      document.getElementById("vApprovals").textContent = actions.length;
-      document.getElementById("approvalsCard").classList.toggle("has-items", actions.length > 0);
-      setVCard("vAttn", (actions.length || failures.length) ? "is-caution rise-4" : "rise-4");
-      const el = document.getElementById("actions");
-      if (!actions.length) { el.innerHTML = '<div class="empty">// no actions awaiting approval</div>'; return; }
-      el.innerHTML = "";
-      actions.forEach((a) => {
-        const card = document.createElement("div"); card.className = "approval";
-        card.innerHTML =
-          `<div><span class="atype">${escapeHtml(a.action_type)}</span><span class="aid">${escapeHtml(a.action_id.slice(0, 8))}</span></div>
-           <div class="adesc">${escapeHtml(actionDescription(a))}</div>
-           <div class="btnrow"><button class="mini-btn approve">✓ APPROVE</button><button class="mini-btn reject">✕ REJECT</button></div>`;
-        card.querySelector(".approve").onclick = () => approve(a.action_id);
-        card.querySelector(".reject").onclick = () => reject(a.action_id);
-        el.appendChild(card);
-      });
-    }
-    function renderFailures(list) {
-      document.getElementById("failuresCard").classList.toggle("has-items", list.length > 0);
-      document.getElementById("vFailures").textContent = list.length;
-      const el = document.getElementById("failures");
-      if (!list.length) { el.innerHTML = '<div class="empty">// all systems nominal</div>'; return; }
-      el.innerHTML = list.map((f) => {
-        const sev = Math.max(0, Math.min(1, Number(f.severity) || 0));
-        return `<div class="failure">
-          <div class="frow"><span class="ftype">${escapeHtml(f.type)}</span><span class="ftarget">${escapeHtml(f.target)} · ${sev.toFixed(2)}</span></div>
-          <div class="sev-bar"><div class="sev-fill" style="width:${Math.round(sev * 100)}%"></div></div></div>`;
-      }).join("");
-    }
+  const statusOf = (mid) => {
+    if (mid !== view) return ids.current[mid] ? { label: 'running', color: '#46d39a' } : { label: 'idle', color: '#3a4745' };
+    if (approval) return { label: 'awaiting', color: '#f4c25a' };
+    if (done) return phoneStatus === 'rejected' ? { label: 'held', color: '#ff6a72' } : { label: 'done', color: '#46d39a' };
+    if (stage === 'idle') return { label: 'ready', color: '#5d6e6c' };
+    return { label: 'running', color: '#46d39a' };
+  };
 
-    /* ───────── feed ───────── */
-    function feedClass(ev) {
-      const t = ev.event_type || "";
-      if (/FAIL/.test(t)) return "ev-alert";
-      if (/RESOLVED|COMPLETED|ISSUE_CLOSED|APPROVED|EXECUTED/.test(t)) return "ev-vital";
-      if (/RISK|REPLAN|FAILURE_|UNCERTAINTY/.test(t)) return "ev-caution";
-      if (ev.source === "orchestrator") return "ev-nerve";
-      if (ev.source === "user") return "ev-vital";
-      if (ev.source === "agent") return "ev-synapse";
-      if (ev.source === "failure_engine" || ev.source === "dynatrace_webhook") return "ev-caution";
-      return "ev-dim";
-    }
-    function srcColor(src) {
-      return { orchestrator: "var(--nerve)", agent: "var(--synapse)", user: "var(--vital)", failure_engine: "var(--alert)", mcp: "var(--mute)" }[src] || "var(--mute)";
-    }
-    function payloadPreview(ev) {
-      const p = ev.payload || {};
-      const keys = Object.keys(p).filter((k) => p[k] !== null && p[k] !== undefined && typeof p[k] !== "object");
-      return keys.slice(0, 3).map((k) => `${k}=${String(p[k]).slice(0, 26)}`).join("  ");
-    }
-    function feedRow(ev) {
-      const li = document.createElement("li"); li.className = "feed-row";
-      const t = (ev.created_at || "").slice(11, 19);
-      li.innerHTML =
-        `<span class="ts">${escapeHtml(t)}</span>
-         <span class="src"><span class="src-pill" style="color:${srcColor(ev.source)}">${escapeHtml(ev.source || "sys")}</span></span>
-         <span class="evt ${feedClass(ev)}">${escapeHtml(ev.event_type || "")}</span>
-         <span class="pl">${escapeHtml(payloadPreview(ev))}</span>`;
-      return li;
-    }
-    function renderFeed(events) {
-      const feed = document.getElementById("feed"); feed.innerHTML = "";
-      events.filter((e) => !FEED_NOISE.has(e.event_type)).slice(0, 90).forEach((e) => feed.appendChild(feedRow(e)));
-    }
-    function prependFeed(ev) {
-      if (FEED_NOISE.has(ev.event_type)) return;
-      const feed = document.getElementById("feed");
-      const row = feedRow(ev); row.classList.add("feed-new");
-      feed.insertBefore(row, feed.firstChild);
-      while (feed.children.length > 90) feed.removeChild(feed.lastChild);
-    }
+  return (
+    <div className="app">
+      <header className="hdr">
+        <div className="wordmark">
+          <svg className="mark" viewBox="0 0 28 28" fill="none">
+            <path d="M3 19 C3 19 7 7 11 7 C15 7 13 21 17 21 C21 21 25 9 25 9" stroke="#3fe0c5" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="3" cy="19" r="2.4" fill="#9d8bff" />
+            <circle cx="25" cy="9" r="2.4" fill="#3fe0c5" />
+            <circle cx="14" cy="14" r="1.5" fill="#dcebe8" opacity="0.6" />
+          </svg>
+          <span className="name">N<b>E</b>RVE</span>
+          <span className="live-tag" title="Driven by the real backend">LIVE</span>
+        </div>
 
-    /* ───────── synaptic mission map ───────── */
-    function fireNeuron(taskId) {
-      const g = document.querySelector(`#synapse g.neuron[data-task="${cssEsc(taskId)}"]`);
-      if (g) { g.classList.remove("fire"); void g.getBoundingClientRect(); g.classList.add("fire"); }
-    }
-    function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
-    function renderTasks(tasks) {
-      lastTasks = tasks || [];
-      document.getElementById("taskCount").textContent = lastTasks.length;
-      const total = lastTasks.length, done = lastTasks.filter((t) => t.status === "completed").length;
-      document.getElementById("vTasksVal").textContent = total ? `${done}/${total}` : "0";
-      document.getElementById("vTasksBar").style.width = total ? Math.round(done / total * 100) + "%" : "0%";
-      setVCard("vTasks", total ? "is-nerve rise-3" : "rise-3");
-      const empty = document.getElementById("graphEmpty"), svg = document.getElementById("synapse");
-      if (!total) { empty.classList.remove("hidden"); svg.innerHTML = ""; return; }
-      empty.classList.add("hidden");
-      drawSynapse(lastTasks);
-    }
-    function statusColor(s) {
-      return { pending: "#62718a", in_progress: "#3fe0c5", completed: "#56e39f", failed: "#ff5d72", retrying: "#ffb454" }[s] || "#62718a";
-    }
-    function drawSynapse(tasks) {
-      const byId = {}; tasks.forEach((t, i) => { t._n = i + 1; byId[t.task_id] = t; });
-      const depthCache = {};
-      const depth = (t, seen) => {
-        if (depthCache[t.task_id] != null) return depthCache[t.task_id];
-        seen = seen || new Set(); if (seen.has(t.task_id)) return 0; seen.add(t.task_id);
-        const deps = (t.depends_on || []).map((d) => byId[d]).filter(Boolean);
-        const d = deps.length ? 1 + Math.max(...deps.map((x) => depth(x, seen))) : 0;
-        return depthCache[t.task_id] = d;
-      };
-      tasks.forEach((t) => depth(t));
-      const layers = {}; let maxD = 0;
-      tasks.forEach((t) => { const d = depthCache[t.task_id]; (layers[d] = layers[d] || []).push(t); maxD = Math.max(maxD, d); });
-      const cols = maxD + 2;                                   // +1 core column, +1 padding
-      const maxRows = Math.max(1, ...Object.values(layers).map((l) => l.length));
-      const W = 1000, H = Math.max(300, maxRows * 120 + 60);
-      const colX = (c) => 70 + c * ((W - 140) / Math.max(1, cols - 1));
-      const rowY = (i, n) => (H / (n + 1)) * (i + 1);
-      const pos = {}; // task_id -> {x,y}
-      Object.keys(layers).forEach((d) => { layers[d].forEach((t, i) => { pos[t.task_id] = { x: colX(Number(d) + 1), y: rowY(i, layers[d].length) }; }); });
-      const core = { x: colX(0), y: H / 2 };
+        <div className="switcher">
+          {Object.values(window.NERVE.MISSIONS).map(m => (
+            <button key={m.id} data-on={view === m.id} onClick={() => setView(m.id)}>
+              <span className="dot" />{m.label}
+            </button>
+          ))}
+        </div>
 
-      const edges = [], pulses = [], roots = [];
-      tasks.forEach((t) => {
-        const p = pos[t.task_id];
-        const deps = (t.depends_on || []).map((d) => byId[d]).filter(Boolean);
-        if (!deps.length) roots.push(t);
-        deps.forEach((dep) => {
-          const a = pos[dep.task_id]; if (!a) return;
-          edges.push(edgePath(a, p, /(in_progress|completed)/.test(t.status)));
-          if (t.status === "in_progress" || t.status === "completed") pulses.push(pulsePath(a, p, statusColor(t.status)));
-        });
-      });
-      roots.forEach((t) => { const p = pos[t.task_id]; edges.push(edgePath(core, p, true)); pulses.push(pulsePath(core, p, "#3fe0c5")); });
+        <Fleet missions={Object.values(window.NERVE.MISSIONS)} currentId={view}
+          statusOf={statusOf} awaiting={!!approval} onSelect={(mid) => setView(mid)} />
 
-      const neurons = tasks.map((t) => neuronSvg(pos[t.task_id], t)).join("");
-      const coreSvg = `<g class="neuron breathe"><circle class="halo" cx="${core.x}" cy="${core.y}" r="26" fill="rgba(63,224,197,.12)"/>
-        <circle cx="${core.x}" cy="${core.y}" r="15" fill="rgba(63,224,197,.18)" stroke="#3fe0c5" stroke-width="1.4"/>
-        <text class="nrole" x="${core.x}" y="${core.y + 2}" style="fill:#bfffaf;font-size:7px">CORE</text></g>`;
+        <div className="hdr-spacer" />
 
-      const svg = document.getElementById("synapse");
-      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-      svg.innerHTML = `<g>${edges.join("")}</g><g>${pulses.join("")}</g>${coreSvg}${neurons}`;
-      attachNeuronTips();
-    }
-    function edgePath(a, b, hot) {
-      const mx = (a.x + b.x) / 2;
-      return `<path class="edge${hot ? " hot" : ""}" d="M${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}"/>`;
-    }
-    function pulsePath(a, b, color) {
-      const mx = (a.x + b.x) / 2;
-      return `<path class="pulse" stroke="${color}" d="M${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}"/>`;
-    }
-    function neuronSvg(p, t) {
-      const c = statusColor(t.status), active = t.status === "in_progress";
-      const cls = "neuron breathe" + (active ? " active" : "");
-      const role = ROLE_ABBR[t.agent_role] || (t.agent_role || "").slice(0, 4).toUpperCase();
-      const tip = `${t.description || ""}|||${t.status}|||${(t.depends_on || []).length}`;
-      return `<g class="${cls}" data-task="${escapeAttr(t.task_id)}" data-tip="${escapeAttr(tip)}">
-        <circle class="halo" cx="${p.x}" cy="${p.y}" r="22" fill="${c}" opacity="${active ? .22 : .12}"/>
-        <circle class="body" cx="${p.x}" cy="${p.y}" r="16" fill="${c}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
-        <text class="nid" x="${p.x}" y="${p.y - 1}">${t._n}</text>
-        <text class="nrole" x="${p.x}" y="${p.y + 9}">${escapeHtml(role)}</text></g>`;
-    }
-    function attachNeuronTips() {
-      const tip = document.getElementById("graphTip"), wrap = document.getElementById("graphWrap");
-      document.querySelectorAll("#synapse g.neuron[data-tip]").forEach((g) => {
-        g.addEventListener("mousemove", (e) => {
-          const parts = (g.getAttribute("data-tip") || "").split("|||");
-          tip.innerHTML = `<div class="tt">TASK · ${parts[1] ? parts[1].toUpperCase() : ""}</div>${escapeHtml(parts[0] || "")}${Number(parts[2]) ? `<div style="color:var(--mute);margin-top:4px">${parts[2]} dependency(ies)</div>` : ""}`;
-          const r = wrap.getBoundingClientRect();
-          let x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
-          x = Math.min(x, r.width - 290); tip.style.left = Math.max(6, x) + "px"; tip.style.top = y + "px";
-          tip.classList.add("show");
-        });
-        g.addEventListener("mouseleave", () => tip.classList.remove("show"));
-      });
-    }
+        <div className="hdr-status">
+          <div className="statchip"><span className="k">Phase</span><span className="v">{phase}</span></div>
+          <div className="statchip"><span className="k">Risk</span><span className="v tnum" style={{ color: band }}>{Math.round(dispRisk)}</span></div>
+        </div>
 
-    /* ───────── ambient neural field (canvas) ───────── */
-    function initNeuralField() {
-      const cv = document.getElementById("neuralField"); if (!cv) return;
-      const ctx = cv.getContext("2d");
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      let w, h, nodes = [], pulses = [], raf = null;
-      function resize() {
-        w = cv.width = Math.floor(innerWidth * devicePixelRatio);
-        h = cv.height = Math.floor(innerHeight * devicePixelRatio);
-        cv.style.width = innerWidth + "px"; cv.style.height = innerHeight + "px";
-        const count = Math.min(70, Math.floor(innerWidth * innerHeight / 26000));
-        nodes = Array.from({ length: count }, () => ({
-          x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - .5) * .12 * devicePixelRatio, vy: (Math.random() - .5) * .12 * devicePixelRatio
-        }));
-      }
-      const LINK = 150 * devicePixelRatio;
-      function step() {
-        ctx.clearRect(0, 0, w, h);
-        for (const n of nodes) {
-          n.x += n.vx; n.y += n.vy;
-          if (n.x < 0 || n.x > w) n.vx *= -1; if (n.y < 0 || n.y > h) n.vy *= -1;
-        }
-        for (let i = 0; i < nodes.length; i++) {
-          for (let j = i + 1; j < nodes.length; j++) {
-            const a = nodes[i], b = nodes[j], dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
-            if (d < LINK) {
-              const o = (1 - d / LINK) * .22;
-              ctx.strokeStyle = `rgba(63,224,197,${o.toFixed(3)})`; ctx.lineWidth = devicePixelRatio * .6;
-              ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-            }
-          }
-        }
-        for (const n of nodes) {
-          ctx.fillStyle = "rgba(63,224,197,.5)";
-          ctx.beginPath(); ctx.arc(n.x, n.y, 1.4 * devicePixelRatio, 0, 6.283); ctx.fill();
-        }
-        if (Math.random() < .03 && nodes.length > 1) {
-          const a = nodes[(Math.random() * nodes.length) | 0], b = nodes[(Math.random() * nodes.length) | 0];
-          if (a !== b && Math.hypot(a.x - b.x, a.y - b.y) < LINK * 1.6) pulses.push({ a, b, t: 0 });
-        }
-        for (let i = pulses.length - 1; i >= 0; i--) {
-          const p = pulses[i]; p.t += .025; if (p.t >= 1) { pulses.splice(i, 1); continue; }
-          const x = p.a.x + (p.b.x - p.a.x) * p.t, y = p.a.y + (p.b.y - p.a.y) * p.t;
-          ctx.fillStyle = `rgba(157,139,255,${(1 - p.t) * .9})`;
-          ctx.beginPath(); ctx.arc(x, y, 2.4 * devicePixelRatio, 0, 6.283); ctx.fill();
-        }
-        raf = requestAnimationFrame(step);
-      }
-      resize(); addEventListener("resize", resize);
-      if (reduce) { step(); cancelAnimationFrame(raf); } else step();
-    }
+        <div className="ctrls">
+          <button className="icon-btn" data-on={t.sound} title={t.sound ? 'Mute' : 'Sound on'} onClick={() => setTweak('sound', !t.sound)}>
+            <CtrlIcon name={t.sound ? 'sound' : 'muted'} />
+          </button>
+          <button className="btn chaos" onClick={chaos} disabled={stage !== 'running' || done || !!approval}>
+            <CtrlIcon name="chaos" />Inject chaos
+          </button>
+          <button className="btn" onClick={restart} disabled={stage === 'idle'}>
+            <CtrlIcon name="restart" />Reconnect
+          </button>
+        </div>
+      </header>
 
-    /* ───────── helpers ───────── */
-    function parseUTC(ts) { if (!ts) return Date.now(); return new Date(/[Z+]/.test(ts) ? ts : ts + "Z").getTime(); }
-    function fmtElapsed(ms) { const s = Math.max(0, Math.floor(ms / 1000)); const m = Math.floor(s / 60); return (m ? m + "m " : "") + (s % 60) + "s"; }
-    function escapeHtml(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-    function escapeAttr(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+      <div className="body">
+        <div className="col left">
+          <Vitals
+            risk={dispRisk} confidence={confidence} running={ticking}
+            activeAgent={activeAgent} fireKey={fireKey} agents={window.NERVE.AGENTS}
+            replans={replans} actions={actions}
+            series={[]} metric={preset.metric} baseline={preset.metric.baseline}
+            coherence={coherence}
+          />
+          <MemoryPanel facts={[]} />
+        </div>
 
-    /* ───────── init ───────── */
-    initNeuralField();
-    renderSelect();
-    if (missionId) boot(missionId); else showLaunch();
-  </script>
+        <div className="col center">
+          <div className="graph-head">
+            <div className="goal-block">
+              <div className="eyebrow">Mission · {preset.label}</div>
+              <div className="goal" dangerouslySetInnerHTML={{ __html: preset.goal }} />
+            </div>
+            <div className="phase-badge">
+              <span className="pd" style={{ background: band, boxShadow: `0 0 8px ${band}` }} />{phase}
+            </div>
+          </div>
+
+          <div className="graph-region">
+            {stage === 'idle' && <GoalLauncher mission={preset} onLaunch={launch} />}
+
+            {stage === 'launching' && <div className="launch-wait">Decomposing goal into a task graph…</div>}
+
+            {done && (phoneStatus === 'rejected'
+              ? <div className="done-toast" style={{ background: 'rgba(255,106,114,0.10)', borderColor: 'rgba(255,106,114,0.32)', color: '#ff6a72' }}>✕ Held — awaiting your review</div>
+              : <div className="done-toast">✓ Mission {status === 'failed' ? 'ended' : 'complete'}</div>
+            )}
+
+            <MissionGraph mission={mission} nodeStates={nodeStates} fireKey={fireKey}
+              activeNode={activeNode} tension={stage === 'running' && dispRisk > 58} />
+
+            {stage !== 'idle' && (
+              <div className="phone-fab">
+                {phoneOpen
+                  ? <TelegramPhone open={phoneOpen} approval={approval} status={phoneStatus}
+                      onApprove={onApprove} onReject={onReject} onClose={() => setPhoneOpen(false)} />
+                  : <button className="phone-pill" data-alert={phoneStatus === 'pending'} onClick={() => setPhoneOpen(true)}>
+                      <span className="pp-dot" />Telegram{phoneStatus === 'pending' ? ' · 1 to approve' : ''}
+                    </button>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col right">
+          <EventFeed events={events} />
+          {approval && <ApprovalDock approval={approval} onApprove={onApprove} onReject={onReject} />}
+        </div>
+      </div>
+
+      <TweaksPanel>
+        <TweakSection label="Chaos engine" />
+        <TweakToggle label="Auto-inject chaos" value={t.autoChaos} onChange={v => setTweak('autoChaos', v)} />
+        <TweakSection label="Signals" />
+        <TweakToggle label="Ambient sound" value={t.sound} onChange={v => setTweak('sound', v)} />
+        <TweakToggle label="Show Telegram by default" value={t.phoneDefault} onChange={v => setTweak('phoneDefault', v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
 </body>
 </html>

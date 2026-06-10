@@ -21,3 +21,8 @@ env/
 *.swp
 .idea/
 .vscode/
+
+# Playwright / verification artifacts
+.playwright-mcp/
+live-*.jpeg
+page-*.jpeg
