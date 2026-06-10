@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         default="us-central1", description="Region for Gemini API calls."
     )
     gemini_model: str = Field(
-        default="gemini-2.0-flash-001", description="Gemini model identifier."
+        default="gemini-2.5-flash", description="Gemini model identifier."
     )
     gemini_grounding_enabled: bool = Field(
         default=True, description="Use Google Search grounding in Gemini reasoning."
