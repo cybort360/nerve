@@ -17,3 +17,9 @@ def test_verify_rejects_wrong_password():
 
 def test_verify_handles_malformed_hash():
     assert verify_password("x", "not-a-real-hash") is False
+
+
+def test_long_password_does_not_crash():
+    long = "a" * 200  # > 72 bytes
+    h = hash_password(long)
+    assert verify_password(long, h) is True
