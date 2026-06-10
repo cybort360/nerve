@@ -114,6 +114,11 @@ class Settings(BaseSettings):
         default=False, description="Run the scripted demo scenario."
     )
 
+    # --- Auth (JWT session) ---
+    jwt_secret: str = Field(default="", description="HS256 signing key; set in prod. Empty => ephemeral per-instance secret.")
+    jwt_expire_minutes: int = Field(default=10080, ge=1, description="Session lifetime in minutes (default 7 days).")
+    cookie_secure: bool = Field(default=True, description="Set the session cookie Secure flag. Set false for local http (curl) testing.")
+
 
 settings = Settings()
 """Module-level singleton. Import this everywhere instead of re-instantiating."""

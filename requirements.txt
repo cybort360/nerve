@@ -33,6 +33,10 @@ python-dotenv>=1.0,<2.0
 # Telegram bot (mobile approvals + notifications) — async, v20+
 python-telegram-bot>=20.0,<22.0
 
+# Auth — password hashing and JWT session tokens
+passlib[bcrypt]>=1.7,<2.0
+pyjwt>=2.8,<3.0
+
 # Testing
 pytest>=8.0,<9.0
 pytest-asyncio>=0.23,<1.0
