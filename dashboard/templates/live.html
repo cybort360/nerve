@@ -814,8 +814,10 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&
 /* light, XSS-safe markdown: escape first, then add only our own bold/link/break tags */
 function mdLite(s) {
   let h = esc(s);
-  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  h = h.replace(/(^|[\s(])(https?:\/\/[^\s)]+)/g, (m, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
+  // URL char classes exclude " ' < > so a captured URL can't break out of the
+  // href="" attribute context (the recommendation is model/web-derived, untrusted).
+  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  h = h.replace(/(^|[\s(])(https?:\/\/[^\s)"'<>]+)/g, (m, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
   h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   h = h.replace(/\n/g, '<br>');
   return h;
