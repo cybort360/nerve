@@ -300,6 +300,7 @@ function App() {
         </div>
 
         <div className="ctrls">
+          <a className="btn live-link" href="/" title="Open the live dashboard (real backend)">● Live</a>
           <button className="icon-btn" data-on={t.sound} title={t.sound ? 'Mute' : 'Sound on'} onClick={() => setTweak('sound', !t.sound)}>
             <CtrlIcon name={t.sound ? 'sound' : 'muted'} />
           </button>

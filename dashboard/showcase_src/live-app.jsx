@@ -309,6 +309,10 @@ function App() {
         </div>
 
         <div className="ctrls">
+          <a className="btn demo-link" href="/showcase" target="_blank" rel="noopener"
+            title="Open the scripted demo — always plays, no backend needed (great for presenting)">
+            ▶ Demo
+          </a>
           <button className="icon-btn" data-on={t.sound} title={t.sound ? 'Mute' : 'Sound on'} onClick={() => setTweak('sound', !t.sound)}>
             <CtrlIcon name={t.sound ? 'sound' : 'muted'} />
           </button>

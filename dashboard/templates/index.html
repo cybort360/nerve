@@ -515,6 +515,13 @@ body {
 .live-tag{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:#46d39a;border:1px solid rgba(70,211,154,.4);border-radius:4px;padding:1px 4px 0;margin-left:9px;align-self:center;}
 .launch-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5d6e6c;font-size:13px;letter-spacing:.5px;}
 
+/* ---- cross-links between live (/) and scripted demo (/showcase) ---- */
+.demo-link, .live-link { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.demo-link { color: #9d8bff; border-color: rgba(157,139,255,.42); }
+.demo-link:hover { border-color: rgba(157,139,255,.75); background: rgba(157,139,255,.08); }
+.live-link { color: #46d39a; border-color: rgba(70,211,154,.42); }
+.live-link:hover { border-color: rgba(70,211,154,.75); background: rgba(70,211,154,.08); }
+
 </style>
 </head>
 <body>
@@ -2499,6 +2506,7 @@ function App() {
         </div>
 
         <div className="ctrls">
+          <a className="btn live-link" href="/" title="Open the live dashboard (real backend)">● Live</a>
           <button className="icon-btn" data-on={t.sound} title={t.sound ? 'Mute' : 'Sound on'} onClick={() => setTweak('sound', !t.sound)}>
             <CtrlIcon name={t.sound ? 'sound' : 'muted'} />
           </button>
