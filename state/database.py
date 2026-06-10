@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 from typing import Any, Awaitable, Callable, TypeVar
+from uuid import uuid4
 
 import structlog
 from motor.motor_asyncio import (
@@ -41,8 +42,10 @@ from state.models import (
     ActionStatus,
     ActionType,
     AgentRole,
+    Belief,
     Event,
     EventSource,
+    MetricSample,
     Mission,
     MissionState,
     MissionStatus,
@@ -65,7 +68,11 @@ COLLECTION_TASKS = "tasks"
 COLLECTION_EVENTS = "events"
 COLLECTION_ACTIONS = "actions"
 COLLECTION_SNAPSHOTS = "snapshots"
+COLLECTION_BELIEFS = "beliefs"
+COLLECTION_METRICS = "metrics"
 DEFAULT_RECENT_EVENTS_LIMIT = 50
+DEFAULT_METRIC_SERIES_LIMIT = 48
+DEFAULT_LIST_MISSIONS_LIMIT = 12
 
 _client: AsyncIOMotorClient | None = None
 _db: AsyncIOMotorDatabase | None = None
@@ -113,6 +120,16 @@ def get_snapshots_collection() -> AsyncIOMotorCollection:
     return get_database()[COLLECTION_SNAPSHOTS]
 
 
+def get_beliefs_collection() -> AsyncIOMotorCollection:
+    """Return the ``beliefs`` collection."""
+    return get_database()[COLLECTION_BELIEFS]
+
+
+def get_metrics_collection() -> AsyncIOMotorCollection:
+    """Return the ``metrics`` collection."""
+    return get_database()[COLLECTION_METRICS]
+
+
 async def ensure_indexes() -> None:
     """Create the MongoDB indexes the state layer relies on.
 
@@ -143,6 +160,24 @@ async def ensure_indexes() -> None:
     snapshots = get_snapshots_collection()
     await snapshots.create_index("mission_id", background=True)
     await snapshots.create_index([("created_at", DESCENDING)], background=True)
+
+    beliefs = get_beliefs_collection()
+    await beliefs.create_index(
+        [("mission_id", ASCENDING), ("key", ASCENDING)],
+        unique=True,
+        background=True,
+    )
+    await beliefs.create_index(
+        [("mission_id", ASCENDING), ("updated_at", ASCENDING)],
+        background=True,
+    )
+
+    metrics = get_metrics_collection()
+    await metrics.create_index("mission_id", background=True)
+    await metrics.create_index(
+        [("mission_id", ASCENDING), ("created_at", ASCENDING)],
+        background=True,
+    )
 
     log.info("indexes_ensured")
 
@@ -583,6 +618,197 @@ async def get_actions_for_mission(
 
 
 # --------------------------------------------------------------------------- #
+# Beliefs (working memory)
+# --------------------------------------------------------------------------- #
+async def write_belief(
+    mission_id: str,
+    key: str,
+    label: str,
+    value: str,
+    confidence: float = 0.5,
+    op: str = "write",
+) -> Belief:
+    """Upsert a belief by (mission_id, key), bump version, emit BELIEF_UPDATED.
+
+    If a belief for the given key already exists, its ``belief_id`` is kept and
+    ``version`` is incremented. A new belief starts at version 0.
+
+    Args:
+        mission_id: Owning mission identifier.
+        key: Stable identity key (e.g. ``"root_cause"``).
+        label: Display label (e.g. ``"Root cause"``).
+        value: Display value (e.g. ``"#4827 · conn-pool"``).
+        confidence: Confidence score in [0.0, 1.0].
+        op: Update operation: ``write``, ``update``, ``confirm``, or ``contradict``.
+
+    Returns:
+        The upserted :class:`Belief`.
+    """
+    ctx = {"mission_id": mission_id, "key": key, "op": "write_belief"}
+    existing_doc = await _execute_read(
+        lambda: get_beliefs_collection().find_one({"mission_id": mission_id, "key": key}),
+        error_ctx=ctx,
+    )
+    now = datetime.utcnow()
+    if existing_doc is not None:
+        existing = _to_model(Belief, existing_doc, error_ctx=ctx)
+        new_version = existing.version + 1
+        belief_id = existing.belief_id
+        created_at = existing.created_at
+    else:
+        new_version = 0
+        belief_id = str(uuid4())
+        created_at = now
+
+    belief = Belief(
+        belief_id=belief_id,
+        mission_id=mission_id,
+        key=key,
+        label=label,
+        value=value,
+        confidence=confidence,
+        op=op,  # type: ignore[arg-type]
+        version=new_version,
+        created_at=created_at,
+        updated_at=now,
+    )
+    await _execute_write(
+        lambda: get_beliefs_collection().replace_one(
+            {"mission_id": mission_id, "key": key},
+            belief.model_dump(),
+            upsert=True,
+        ),
+        error_ctx=ctx,
+    )
+    await emit_event(
+        mission_id,
+        "BELIEF_UPDATED",
+        {
+            "key": key,
+            "label": label,
+            "value": value,
+            "confidence": confidence,
+            "op": op,
+            "version": new_version,
+        },
+        "agent",
+    )
+    log.info("belief_written", mission_id=mission_id, key=key, version=new_version)
+    return belief
+
+
+async def get_beliefs(mission_id: str) -> list[Belief]:
+    """Return all beliefs for a mission, ordered by updated_at ascending.
+
+    Args:
+        mission_id: Owning mission identifier.
+
+    Returns:
+        List of :class:`Belief` (possibly empty).
+    """
+    ctx = {"mission_id": mission_id, "op": "get_beliefs"}
+    docs = await _execute_read(
+        lambda: get_beliefs_collection()
+        .find({"mission_id": mission_id})
+        .sort([("updated_at", ASCENDING), ("version", ASCENDING), ("_id", ASCENDING)])
+        .to_list(length=None),
+        error_ctx=ctx,
+    )
+    return [_to_model(Belief, d, error_ctx=ctx) for d in docs]
+
+
+# --------------------------------------------------------------------------- #
+# Metrics (time-series samples)
+# --------------------------------------------------------------------------- #
+async def record_metric(
+    mission_id: str,
+    label: str,
+    value: float,
+    unit: str = "",
+    baseline: float | None = None,
+) -> None:
+    """Insert one MetricSample and emit a METRIC_SAMPLE event.
+
+    Args:
+        mission_id: Owning mission identifier.
+        label: Metric label (e.g. ``"checkout · error rate"``).
+        value: Sampled metric value.
+        unit: Optional unit string (``"ms"``, ``"%"``, etc.).
+        baseline: Optional baseline value for comparison.
+    """
+    sample = MetricSample(
+        mission_id=mission_id,
+        label=label,
+        value=value,
+        unit=unit,
+        baseline=baseline,
+    )
+    ctx = {"mission_id": mission_id, "label": label, "op": "record_metric"}
+    await _execute_write(
+        lambda: get_metrics_collection().insert_one(sample.model_dump()),
+        error_ctx=ctx,
+    )
+    await emit_event(
+        mission_id,
+        "METRIC_SAMPLE",
+        {"label": label, "value": value, "unit": unit, "baseline": baseline},
+        "agent",
+    )
+    log.info("metric_recorded", mission_id=mission_id, label=label, value=value)
+
+
+async def get_metric_series(
+    mission_id: str, limit: int = DEFAULT_METRIC_SERIES_LIMIT
+) -> list[MetricSample]:
+    """Return the most recent samples for a mission, oldest to newest.
+
+    Args:
+        mission_id: Owning mission identifier.
+        limit: Maximum number of samples to return (default 48).
+
+    Returns:
+        List of :class:`MetricSample` ordered by ``created_at`` ascending.
+    """
+    ctx = {"mission_id": mission_id, "op": "get_metric_series"}
+    # Fetch the N most-recent (desc created_at, desc _id for tiebreaking), then
+    # reverse in Python so the caller receives oldest→newest order.
+    docs = await _execute_read(
+        lambda: get_metrics_collection()
+        .find({"mission_id": mission_id})
+        .sort([("created_at", DESCENDING), ("_id", DESCENDING)])
+        .limit(limit)
+        .to_list(length=limit),
+        error_ctx=ctx,
+    )
+    docs.reverse()
+    return [_to_model(MetricSample, d, error_ctx=ctx) for d in docs]
+
+
+# --------------------------------------------------------------------------- #
+# Missions — fleet listing
+# --------------------------------------------------------------------------- #
+async def list_recent_missions(limit: int = DEFAULT_LIST_MISSIONS_LIMIT) -> list[Mission]:
+    """Return the most recently updated missions for the fleet roster.
+
+    Args:
+        limit: Maximum number of missions to return.
+
+    Returns:
+        List of :class:`Mission` ordered by ``updated_at`` descending.
+    """
+    ctx = {"op": "list_recent_missions", "limit": limit}
+    docs = await _execute_read(
+        lambda: get_missions_collection()
+        .find()
+        .sort("updated_at", DESCENDING)
+        .limit(limit)
+        .to_list(length=limit),
+        error_ctx=ctx,
+    )
+    return [_to_model(Mission, d, error_ctx=ctx) for d in docs]
+
+
+# --------------------------------------------------------------------------- #
 # Events + snapshots
 # --------------------------------------------------------------------------- #
 async def emit_event(
@@ -807,16 +1033,27 @@ async def get_latest_snapshot(mission_id: str) -> Snapshot | None:
 async def get_mission_state(mission_id: str) -> MissionState | None:
     """Assemble the aggregate observation view for a mission.
 
+    Bundles the mission with its tasks, recent events, current beliefs
+    (working memory), and recent metric samples.
+
     Args:
         mission_id: Mission identifier.
 
     Returns:
-        A :class:`MissionState` bundling mission, tasks, and recent events,
-        or ``None`` if the mission does not exist.
+        A :class:`MissionState` bundling mission, tasks, recent events,
+        beliefs, and metric series; or ``None`` if the mission does not exist.
     """
     mission = await get_mission(mission_id)
     if mission is None:
         return None
     tasks = await get_tasks_for_mission(mission_id)
     recent_events = await get_recent_events_for_mission(mission_id)
-    return MissionState(mission=mission, tasks=tasks, recent_events=recent_events)
+    beliefs = await get_beliefs(mission_id)
+    metric_series = await get_metric_series(mission_id)
+    return MissionState(
+        mission=mission,
+        tasks=tasks,
+        recent_events=recent_events,
+        beliefs=beliefs,
+        metric_series=metric_series,
+    )

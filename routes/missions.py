@@ -10,7 +10,9 @@ from routes.schemas import (
     CreateMissionRequest,
     CreateMissionResponse,
     EventsPageResponse,
+    MissionListResponse,
     MissionStateResponse,
+    MissionSummary,
 )
 from state import database as db
 
@@ -24,6 +26,28 @@ MAX_EVENT_PAGE = 200
 # High-frequency internal events hidden from the dashboard feed (still in the
 # full audit log via GET /missions/{id}/events).
 FEED_NOISE_TYPES = ["MCP_TOOL_CALLED", "MCP_TOOL_RESULT", "RESOLUTION_CHECK"]
+
+
+@router.get("", response_model=MissionListResponse)
+async def list_missions() -> MissionListResponse:
+    """Return recent missions as compact summaries for the fleet roster.
+
+    Returns:
+        Up to 12 most-recently-updated missions as :class:`MissionSummary` items.
+    """
+    missions = await db.list_recent_missions()
+    summaries = [
+        MissionSummary(
+            mission_id=m.mission_id,
+            goal=m.goal,
+            mission_type=m.mission_type,
+            status=m.status,
+            updated_at=m.updated_at,
+        )
+        for m in missions
+    ]
+    log.info("missions_listed", count=len(summaries))
+    return MissionListResponse(missions=summaries)
 
 
 @router.post("", response_model=CreateMissionResponse, status_code=201)
@@ -80,6 +104,8 @@ async def read_mission_state(mission_id: str, request: Request) -> MissionStateR
         active_failures=_active_failures(request),
         risk=risk,
         risk_breakdown=breakdown,
+        beliefs=state.beliefs,
+        metric_series=state.metric_series,
     )
 
 

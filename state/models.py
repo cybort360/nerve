@@ -10,6 +10,10 @@ Note on timestamps:
     for ``missions`` and ``tasks``. The explicit schemas are the contract, so
     ``Event``, ``Action``, and ``Snapshot`` carry ``created_at`` only. Flagged
     here per the "never deviate without flagging" rule.
+
+    ``Belief`` tracks both ``created_at`` and ``updated_at`` because write_belief
+    upserts and bumps version; we need updated_at to order beliefs consistently.
+    ``MetricSample`` is append-only so only ``created_at`` is needed.
 """
 
 from __future__ import annotations
@@ -128,11 +132,46 @@ class Snapshot(_BaseDoc):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class Belief(_BaseDoc):
+    """A fact NERVE currently believes, with confidence — the working memory.
+
+    Beliefs are upserted by (mission_id, key); ``version`` increments on each
+    write so observers can detect staleness. ``op`` describes the nature of the
+    latest update (write/update/confirm/contradict).
+    """
+
+    belief_id: str = Field(default_factory=_uuid)
+    mission_id: str
+    key: str
+    label: str
+    value: str
+    confidence: float = Field(ge=0.0, le=1.0, default=0.5)
+    op: Literal["write", "update", "confirm", "contradict"] = "write"
+    version: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MetricSample(_BaseDoc):
+    """One time-series sample of a mission's headline metric (sparkline).
+
+    Samples are append-only; no ``updated_at`` because they are never mutated.
+    """
+
+    mission_id: str
+    label: str
+    value: float
+    unit: str = ""
+    baseline: float | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class MissionState(BaseModel):
     """Aggregate view of a mission for agents to observe.
 
-    Bundles the mission with its tasks and most-recent events so agents have a
-    single object to reason over without issuing their own queries.
+    Bundles the mission with its tasks, most-recent events, current beliefs
+    (working memory), and recent metric samples so agents have a single object
+    to reason over without issuing their own queries.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -140,3 +179,5 @@ class MissionState(BaseModel):
     mission: Mission
     tasks: list[Task] = Field(default_factory=list)
     recent_events: list[Event] = Field(default_factory=list)
+    beliefs: list[Belief] = Field(default_factory=list)
+    metric_series: list[MetricSample] = Field(default_factory=list)

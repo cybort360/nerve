@@ -6,9 +6,21 @@ return these (or core state models) so FastAPI validates and serializes them.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
-from state.models import Action, Event, Mission, MissionType, Snapshot, Task
+from state.models import (
+    Action,
+    Belief,
+    Event,
+    MetricSample,
+    Mission,
+    MissionStatus,
+    MissionType,
+    Snapshot,
+    Task,
+)
 
 
 class CreateMissionRequest(BaseModel):
@@ -36,6 +48,24 @@ class MissionStateResponse(BaseModel):
     active_failures: list[dict] = Field(default_factory=list)
     risk: float | None = None
     risk_breakdown: dict | None = None
+    beliefs: list[Belief] = Field(default_factory=list)
+    metric_series: list[MetricSample] = Field(default_factory=list)
+
+
+class MissionSummary(BaseModel):
+    """Compact mission summary for the fleet roster (``GET /missions``)."""
+
+    mission_id: str
+    goal: str
+    mission_type: MissionType
+    status: MissionStatus
+    updated_at: datetime
+
+
+class MissionListResponse(BaseModel):
+    """Response for ``GET /missions`` fleet listing."""
+
+    missions: list[MissionSummary]
 
 
 class EventsPageResponse(BaseModel):
