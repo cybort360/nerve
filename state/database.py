@@ -32,6 +32,7 @@ from tenacity import (
 
 from config import settings
 from exceptions import (
+    AuthError,
     DocumentNotFoundError,
     StateError,
     ValidationError,
@@ -53,6 +54,7 @@ from state.models import (
     Snapshot,
     Task,
     TaskStatus,
+    User,
 )
 
 log = structlog.get_logger()
@@ -70,6 +72,7 @@ COLLECTION_ACTIONS = "actions"
 COLLECTION_SNAPSHOTS = "snapshots"
 COLLECTION_BELIEFS = "beliefs"
 COLLECTION_METRICS = "metrics"
+COLLECTION_USERS = "users"
 DEFAULT_RECENT_EVENTS_LIMIT = 50
 DEFAULT_METRIC_SERIES_LIMIT = 48
 DEFAULT_LIST_MISSIONS_LIMIT = 12
@@ -130,6 +133,11 @@ def get_metrics_collection() -> AsyncIOMotorCollection:
     return get_database()[COLLECTION_METRICS]
 
 
+def get_users_collection() -> AsyncIOMotorCollection:
+    """Return the ``users`` collection."""
+    return get_database()[COLLECTION_USERS]
+
+
 async def ensure_indexes() -> None:
     """Create the MongoDB indexes the state layer relies on.
 
@@ -178,6 +186,10 @@ async def ensure_indexes() -> None:
         [("mission_id", ASCENDING), ("created_at", ASCENDING)],
         background=True,
     )
+
+    users = get_users_collection()
+    await users.create_index("user_id", unique=True, background=True)
+    await users.create_index("email", unique=True, background=True)
 
     log.info("indexes_ensured")
 
@@ -615,6 +627,67 @@ async def get_actions_for_mission(
         lambda: get_actions_collection().find(query).to_list(length=None), error_ctx=ctx
     )
     return [_to_model(Action, d, error_ctx=ctx) for d in docs]
+
+
+# --------------------------------------------------------------------------- #
+# Users
+# --------------------------------------------------------------------------- #
+async def create_user(email: str, password_hash: str) -> User:
+    """Create a user; raise AuthError if the (normalized) email already exists.
+
+    Args:
+        email: Raw email address (will be trimmed and lowercased).
+        password_hash: Pre-hashed password string.
+
+    Returns:
+        The created :class:`User`.
+
+    Raises:
+        AuthError: If the normalized email is already registered.
+    """
+    normalized = email.strip().lower()
+    if await get_user_by_email(normalized) is not None:
+        raise AuthError("email already registered", context={"email": normalized})
+    user = User(email=normalized, password_hash=password_hash)
+    ctx = {"user_id": user.user_id, "op": "create_user"}
+    await _execute_write(
+        lambda: get_users_collection().insert_one(user.model_dump()), error_ctx=ctx
+    )
+    log.info("user_created", user_id=user.user_id)
+    return user
+
+
+async def get_user_by_email(email: str) -> User | None:
+    """Return the user with this (normalized) email, or None.
+
+    Args:
+        email: Email address to look up (will be trimmed and lowercased).
+
+    Returns:
+        The :class:`User`, or ``None`` if not found.
+    """
+    normalized = email.strip().lower()
+    ctx = {"email": normalized, "op": "get_user_by_email"}
+    doc = await _execute_read(
+        lambda: get_users_collection().find_one({"email": normalized}), error_ctx=ctx
+    )
+    return _to_model(User, doc, error_ctx=ctx) if doc else None
+
+
+async def get_user(user_id: str) -> User | None:
+    """Return the user with this id, or None.
+
+    Args:
+        user_id: User identifier.
+
+    Returns:
+        The :class:`User`, or ``None`` if not found.
+    """
+    ctx = {"user_id": user_id, "op": "get_user"}
+    doc = await _execute_read(
+        lambda: get_users_collection().find_one({"user_id": user_id}), error_ctx=ctx
+    )
+    return _to_model(User, doc, error_ctx=ctx) if doc else None
 
 
 # --------------------------------------------------------------------------- #

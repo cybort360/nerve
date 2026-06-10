@@ -121,6 +121,15 @@ class Action(_BaseDoc):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class User(_BaseDoc):
+    """A registered account."""
+
+    user_id: str = Field(default_factory=_uuid)
+    email: str
+    password_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Snapshot(_BaseDoc):
     """A point-in-time summary of mission state at the end of a loop cycle."""
 

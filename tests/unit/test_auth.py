@@ -45,3 +45,30 @@ def test_decode_rejects_expired_token():
 
 def test_cookie_name_is_stable():
     assert COOKIE_NAME == "nerve_session"
+
+
+import pytest
+
+from exceptions import AuthError
+from state import database as db
+
+
+async def test_create_and_fetch_user(mock_db):
+    user = await db.create_user("Alice@Example.com ", "hashed")
+    assert user.email == "alice@example.com"  # normalized (trimmed + lowercased)
+    assert user.password_hash == "hashed"
+    by_email = await db.get_user_by_email("alice@example.com")
+    assert by_email is not None and by_email.user_id == user.user_id
+    by_id = await db.get_user(user.user_id)
+    assert by_id is not None and by_id.email == "alice@example.com"
+
+
+async def test_duplicate_email_rejected(mock_db):
+    await db.create_user("bob@example.com", "h1")
+    with pytest.raises(AuthError):
+        await db.create_user("BOB@example.com", "h2")
+
+
+async def test_get_user_missing_returns_none(mock_db):
+    assert await db.get_user_by_email("nobody@example.com") is None
+    assert await db.get_user("does-not-exist") is None

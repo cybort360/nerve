@@ -162,6 +162,13 @@ class ValidationError(StateError):
 
 
 # --------------------------------------------------------------------------- #
+# Auth errors
+# --------------------------------------------------------------------------- #
+class AuthError(NerveBaseError):
+    """Authentication/registration failure (e.g. duplicate email, bad credentials)."""
+
+
+# --------------------------------------------------------------------------- #
 # Failure engine
 # --------------------------------------------------------------------------- #
 class FailureEngineError(NerveBaseError):
