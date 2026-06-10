@@ -135,18 +135,83 @@ class IncidentAutopilotWorkflow:
         problem = await self._dynatrace.get_problem_details(problem_id)  # Step 1
         await self._emit(mission_id, EVENT_INCIDENT_DETECTED, {"problem_id": problem_id, "title": problem.title})
         service_id = problem.impacted_services[0] if problem.impacted_services else None
+
         metrics, deployments = await self._assemble_context(problem, service_id)  # Step 2
         await self._emit(mission_id, EVENT_CONTEXT_ASSEMBLED, {"deployments": len(deployments), "service_id": service_id})
+
+        # Record the initial metric spike so the sparkline starts high.
+        if metrics is not None and metrics.error_rate is not None:
+            await self._safe_record_metric(
+                mission_id, "checkout · error rate",
+                round(metrics.error_rate * 100, 2), unit="%",
+            )
+
         self._memories = await self._memory.retrieve_similar(problem.title or problem.problem_id)  # Step 2.5
         if self._memories:
             await self._emit(mission_id, EVENT_MEMORY_RETRIEVED, {"count": len(self._memories)})
         correlation = self._enforce_no_deployment_rule(await self._reason(problem, metrics, deployments))  # Step 3
         await self._emit(mission_id, EVENT_REASONING_COMPLETE, self._reasoning_payload(correlation))
+
+        await self._emit_workflow_beliefs(mission_id, correlation, service_id, metrics)  # Milestone beliefs
+
         issue = await self._create_issue(mission_id, problem, correlation)  # Steps 4-5
         if correlation.recommendation == "rollback" and correlation.correlated_deployment is not None:
-            await self._create_rollback_action(mission_id, correlation)  # Step 6
+            await self._create_rollback_action(mission_id, correlation, service_id)  # Step 6
         await self._start_resolution(mission_id, problem, service_id, issue, correlation)  # Step 7
         log.info("incident_workflow_complete", recommendation=correlation.recommendation)
+
+    async def _emit_workflow_beliefs(
+        self,
+        mission_id: str,
+        correlation: CorrelationResult,
+        service_id: str | None,
+        metrics: ServiceMetrics | None,
+    ) -> None:
+        """Write the milestone working-memory beliefs for a completed reasoning step.
+
+        Covers anomaly detection, root cause, blast radius, and action plan.
+        Each write is best-effort (non-fatal) via :meth:`_safe_write_belief`.
+
+        Args:
+            mission_id: Owning mission identifier.
+            correlation: Result of the Gemini correlation step.
+            service_id: Primary impacted service (may be None).
+            metrics: Service metrics fetched during context assembly (may be None).
+        """
+        anomaly_label = service_id or "unknown"
+        await self._safe_write_belief(
+            mission_id, "anomaly", "Anomaly",
+            f"{anomaly_label[:22]} error rate elevated",
+            confidence=0.94, op="write",
+        )
+
+        deployment = correlation.correlated_deployment
+        if deployment is not None:
+            root_value: str = f"deploy #{deployment.id} · {deployment.ref}"[:28]
+        else:
+            root_value = correlation.recommendation[:28]
+        await self._safe_write_belief(
+            mission_id, "root_cause", "Root cause",
+            root_value,
+            confidence=correlation.confidence, op="write",
+        )
+
+        if service_id is not None:
+            await self._safe_write_belief(
+                mission_id, "blast", "Blast radius",
+                f"{service_id[:18]} traffic affected",
+                confidence=0.9, op="write",
+            )
+
+        if deployment is not None:
+            plan_value: str = f"rollback {deployment.ref}"[:28]
+        else:
+            plan_value = correlation.recommendation[:28]
+        await self._safe_write_belief(
+            mission_id, "plan", "Plan",
+            plan_value,
+            confidence=correlation.confidence, op="write",
+        )
 
     async def _assemble_context(
         self, problem: DynatraceProblemDetail, service_id: str | None
@@ -192,14 +257,22 @@ class IncidentAutopilotWorkflow:
         )
         return issue
 
-    async def _create_rollback_action(self, mission_id: str, correlation: CorrelationResult) -> None:
+    async def _create_rollback_action(
+        self, mission_id: str, correlation: CorrelationResult, service_id: str | None
+    ) -> None:
         """Create a PENDING rollback action awaiting human approval (Step 6).
 
         The rollback is never executed here — it stays pending until a human
         approves it via the API, per NERVE invariant 2.
+
+        Args:
+            mission_id: Owning mission identifier.
+            correlation: Reasoning output with the correlated deployment.
+            service_id: Real affected service id derived from the Dynatrace problem.
         """
         deployment = correlation.correlated_deployment
         assert deployment is not None  # guarded by caller
+        impact_label = f"{service_id} · rolling restart" if service_id else "rolling restart"
         payload = {
             "deployment_id": deployment.id,
             "ref": deployment.ref,
@@ -207,6 +280,11 @@ class IncidentAutopilotWorkflow:
             "environment": deployment.environment,
             "confidence": correlation.confidence,
             "mr_body": IncidentTemplates.rollback_mr_body(deployment),
+            "impact": {
+                "kind": "pods",
+                "label": impact_label,
+                "sub": "no downtime",
+            },
         }
         action = await db.create_action(mission_id, ACTION_GITLAB_ROLLBACK, payload)
         await self._emit(
@@ -262,6 +340,13 @@ class IncidentAutopilotWorkflow:
         if mission is None or mission.status != "resolved":
             return  # monitoring exhausted without a confirmed resolution
         elapsed = (datetime.utcnow() - self._run_started_at).total_seconds() if self._run_started_at else None
+
+        # Belief: service recovered — update working memory with resolution.
+        await self._safe_write_belief(
+            mission_id, "status", "Status", "recovered",
+            confidence=0.97, op="confirm",
+        )
+
         await telegram_notifier.send_notification(
             f"✅ Incident resolved. {service_id} error rate normalized after {self._format_duration(elapsed)}.",
             level="success",
@@ -329,6 +414,56 @@ class IncidentAutopilotWorkflow:
             "confidence": correlation.confidence,
             "correlated_deployment_id": deployment.id if deployment else None,
         }
+
+    async def _safe_write_belief(
+        self,
+        mission_id: str,
+        key: str,
+        label: str,
+        value: str,
+        confidence: float = 0.5,
+        op: str = "write",
+    ) -> None:
+        """Write a working-memory belief; log a warning and continue on failure.
+
+        Args:
+            mission_id: Owning mission identifier.
+            key: Stable belief key (e.g. ``"root_cause"``).
+            label: Display label shown in the dashboard panel.
+            value: Short display string (≤28 chars recommended).
+            confidence: Confidence score in [0.0, 1.0].
+            op: Belief operation: write | update | confirm | contradict.
+        """
+        try:
+            await db.write_belief(mission_id, key, label, value, confidence=confidence, op=op)
+        except Exception as exc:  # noqa: BLE001 — belief write is non-fatal
+            self._log.warning(
+                "belief_write_failed", mission_id=mission_id, key=key, error=str(exc)
+            )
+
+    async def _safe_record_metric(
+        self,
+        mission_id: str,
+        label: str,
+        value: float,
+        unit: str = "",
+        baseline: float | None = None,
+    ) -> None:
+        """Record a metric sample; log a warning and continue on failure.
+
+        Args:
+            mission_id: Owning mission identifier.
+            label: Metric series label (e.g. ``"checkout · error rate"``).
+            value: Sampled value (already scaled to display units, e.g. percent).
+            unit: Display unit string (e.g. ``"%"``).
+            baseline: Optional healthy baseline for sparkline reference line.
+        """
+        try:
+            await db.record_metric(mission_id, label, value, unit=unit, baseline=baseline)
+        except Exception as exc:  # noqa: BLE001 — metric record is non-fatal
+            self._log.warning(
+                "metric_record_failed", mission_id=mission_id, label=label, error=str(exc)
+            )
 
     async def _emit(self, mission_id: str, event_type: str, payload: dict) -> None:
         """Emit a workflow audit event."""

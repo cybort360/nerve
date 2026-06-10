@@ -78,6 +78,8 @@ class IncidentResolver:
         log = self._log.bind(mission_id=mission_id, service_id=service_id)
         consecutive = 0
         checks = 0
+        # Convert fraction baselines (e.g. 0.02) to percentage for display.
+        baseline_pct = round(baseline_error_rate * 100, 2)
         try:
             while self._max_checks is None or checks < self._max_checks:
                 rate = await self._current_error_rate(service_id)
@@ -88,6 +90,22 @@ class IncidentResolver:
                     {"error_rate": rate, "baseline": baseline_error_rate, "consecutive": consecutive},
                     SOURCE_ORCH,
                 )
+                # Record the recovery sparkline sample (best-effort, non-fatal).
+                if rate is not None:
+                    try:
+                        await db.record_metric(
+                            mission_id,
+                            "checkout · error rate",
+                            round(rate * 100, 2),
+                            unit="%",
+                            baseline=baseline_pct,
+                        )
+                    except Exception as exc:  # noqa: BLE001 — metric record is non-fatal
+                        self._log.warning(
+                            "resolver_metric_record_failed",
+                            mission_id=mission_id,
+                            error=str(exc),
+                        )
                 if consecutive >= self._required:
                     await self._resolve(mission_id, issue_iid)
                     return

@@ -345,10 +345,28 @@ class DemoScenario:
                 duration_seconds=T_CLEAR_CONTRADICTORY - T_INJECT_CONTRADICTORY,
             )
         )
+        # Belief contradiction: conflicting signals make root-cause ambiguous.
+        try:
+            await db.write_belief(
+                mission_id, "root_cause", "Root cause",
+                "#4827 vs #4830 ?",
+                confidence=0.41, op="contradict",
+            )
+        except Exception as exc:  # noqa: BLE001 — belief write is best-effort during demo
+            self._log.warning("demo_belief_write_failed", key="root_cause", op="contradict", error=str(exc))
         await self._wait_until(T_UNCERTAINTY)
         await self._spike_risk(mission_id)
         await self._wait_until(T_CLEAR_CONTRADICTORY)
         await self._engine.clear(FailureType.CONTRADICTORY_METRICS)
+        # Belief re-confirmed once contradictory metrics are cleared.
+        try:
+            await db.write_belief(
+                mission_id, "root_cause", "Root cause",
+                "deploy #4827",
+                confidence=0.9, op="confirm",
+            )
+        except Exception as exc:  # noqa: BLE001 — belief write is best-effort during demo
+            self._log.warning("demo_belief_write_failed", key="root_cause", op="confirm", error=str(exc))
         await self._wait_until(T_APPROVAL_REQUESTED)
         await db.emit_event(mission_id, EVENT_DEMO_APPROVAL_REQUESTED, {"action": "gitlab_rollback"}, SOURCE_FAILURE_ENGINE)
 
