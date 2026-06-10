@@ -826,6 +826,7 @@ function mdLite(s) {
   h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   h = h.replace(/(^|[\s(])(https?:\/\/[^\s)"'<>]+)/g, (m, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
   h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/(^|\n)[ \t]*[*\-•][ \t]+/g, '$1• ');  // list bullets → clean •
   h = h.replace(/\n/g, '<br>');
   return h;
 }
