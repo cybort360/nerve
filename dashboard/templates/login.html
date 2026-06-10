@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NERVE — Sign in</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box} body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(1200px 600px at 50% -10%,rgba(63,224,197,.06),transparent),#06090b;
+    font-family:'Chakra Petch',sans-serif;color:#eafdf8}
+  .card{width:min(380px,92vw);background:linear-gradient(180deg,#0e1416,#0a0f11);border:1px solid rgba(63,224,197,.22);
+    border-radius:16px;padding:30px;box-shadow:0 24px 80px rgba(0,0,0,.6)}
+  .mark{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .mark .name{font-weight:700;letter-spacing:2px} .mark .name b{color:#3fe0c5}
+  h1{font-size:18px;margin:0 0 4px} .sub{color:#5d6e6c;font-size:13px;margin-bottom:18px;font-family:'IBM Plex Mono',monospace}
+  label{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;color:#5d6e6c;margin:12px 0 5px;text-transform:uppercase}
+  input{width:100%;height:42px;padding:0 12px;background:#0a0f11;border:1px solid rgba(120,200,190,.2);border-radius:8px;color:#eafdf8;font-family:'IBM Plex Mono',monospace;font-size:14px}
+  input:focus{outline:none;border-color:#3fe0c5}
+  button{width:100%;height:44px;margin-top:18px;border:none;border-radius:8px;background:#3fe0c5;color:#04211c;font-weight:600;font-size:14px;cursor:pointer}
+  button:hover{box-shadow:0 0 22px -4px #3fe0c5}
+  .toggle{margin-top:16px;text-align:center;font-size:13px;color:#5d6e6c}
+  .toggle a{color:#3fe0c5;cursor:pointer;text-decoration:none}
+  .err{color:#ff6a72;font-size:12px;margin-top:10px;min-height:16px;font-family:'IBM Plex Mono',monospace}
+</style></head>
+<body>
+  <div class="card">
+    <div class="mark">
+      <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M3 19 C3 19 7 7 11 7 C15 7 13 21 17 21 C21 21 25 9 25 9" stroke="#3fe0c5" stroke-width="2" stroke-linecap="round"/><circle cx="3" cy="19" r="2.4" fill="#9d8bff"/><circle cx="25" cy="9" r="2.4" fill="#3fe0c5"/></svg>
+      <span class="name">N<b>E</b>RVE</span>
+    </div>
+    <h1 id="title">Sign in</h1>
+    <div class="sub" id="subtitle">Access the mission control plane</div>
+    <form id="form" onsubmit="return submitForm(event)">
+      <label>Email</label><input id="email" type="email" autocomplete="email" required />
+      <label>Password</label><input id="password" type="password" autocomplete="current-password" required />
+      <button id="submit" type="submit">Sign in</button>
+      <div class="err" id="err"></div>
+    </form>
+    <div class="toggle" id="toggle">No account? <a onclick="setMode('signup')">Create one</a></div>
+  </div>
+<script>
+  let mode = 'login';
+  function setMode(m){ mode = m;
+    document.getElementById('title').textContent = m==='login' ? 'Sign in' : 'Create account';
+    document.getElementById('submit').textContent = m==='login' ? 'Sign in' : 'Sign up';
+    document.getElementById('toggle').innerHTML = m==='login'
+      ? "No account? <a onclick=\"setMode('signup')\">Create one</a>"
+      : "Have an account? <a onclick=\"setMode('login')\">Sign in</a>";
+    document.getElementById('err').textContent = '';
+  }
+  async function submitForm(e){ e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const err = document.getElementById('err'); err.textContent = '';
+    try {
+      const res = await fetch('/auth/' + mode, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email, password }) });
+      if (res.ok) { location.href = '/'; return false; }
+      const d = await res.json().catch(()=>({}));
+      err.textContent = d.detail || 'Something went wrong';
+    } catch { err.textContent = 'Network error'; }
+    return false;
+  }
+</script>
+</body></html>

@@ -31,7 +31,8 @@ from failure_engine.injector import FailureEngine
 from notifications.telegram_bot import telegram_notifier
 from orchestrator.orchestrator import NERVEOrchestrator
 from orchestrator.planner import MissionPlanner, TaskDefinition
-from routes import actions, dashboard, demo, failure, missions, webhooks
+from auth.middleware import AuthMiddleware
+from routes import actions, auth, dashboard, demo, failure, missions, webhooks
 from state.database import ensure_indexes
 from websocket_manager import connection_manager
 
@@ -123,6 +124,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="NERVE", version="0.1.0", lifespan=lifespan)
+app.add_middleware(AuthMiddleware)
 
 # HTTP status mapping for typed NERVE errors (no stack traces leak to clients).
 _ERROR_STATUS: dict[type[NerveBaseError], int] = {
@@ -275,6 +277,7 @@ async def decompose(request: DecomposeRequest) -> list[TaskDefinition]:
 
 
 app.include_router(internal_router)
+app.include_router(auth.router)
 app.include_router(missions.router)
 app.include_router(actions.router)
 app.include_router(failure.router)

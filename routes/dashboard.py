@@ -13,6 +13,13 @@ _TEMPLATES = Path(__file__).resolve().parent.parent / "dashboard" / "templates"
 _INDEX_HTML = _TEMPLATES / "index.html"
 _LIVE_HTML = _TEMPLATES / "live.html"
 _LIVE_CLASSIC_HTML = _TEMPLATES / "live-classic.html"
+_LOGIN_HTML = _TEMPLATES / "login.html"
+
+
+@router.get("/login", include_in_schema=False)
+async def dashboard_login() -> FileResponse:
+    """Serve the login / signup page (public)."""
+    return FileResponse(_LOGIN_HTML)
 
 
 @router.get("/", include_in_schema=False)
