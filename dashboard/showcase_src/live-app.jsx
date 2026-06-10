@@ -33,6 +33,27 @@ const STATE_EVENTS = new Set([
 ]);
 const POLL_MS = 4000;
 
+/* Center-screen result modal shown when a research mission produces its hand-off. */
+function ResultModal({ open, goal, recommendation, onApprove, onReject, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="result-overlay" onClick={onClose}>
+      <div className="result-card" onClick={(e) => e.stopPropagation()}>
+        <button className="result-close" onClick={onClose} aria-label="Close">✕</button>
+        <div className="result-icon"><Icon name="check" /></div>
+        <div className="result-badge">Research complete</div>
+        {goal && <div className="result-goal">{goal}</div>}
+        <div className="result-body" dangerouslySetInnerHTML={{ __html: L.mdLite(recommendation || '') }} />
+        <div className="result-actions">
+          <button className="ac-btn reject" onClick={onReject}>Hold</button>
+          <button className="ac-btn approve" onClick={onApprove}>Approve</button>
+        </div>
+        <div className="result-hint"><CtrlIcon name="phone" />Also sent to your phone via Telegram</div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [view, setView] = useState('incident');
   const preset = window.NERVE.MISSIONS[view];
@@ -60,6 +81,8 @@ function App() {
   const [metricMeta, setMetricMeta] = useState(null);
   const [fleetMissions, setFleetMissions] = useState([]);
   const [goalText, setGoalText] = useState('');  // the real goal of the running mission
+  const [resultOpen, setResultOpen] = useState(false);  // research result modal
+  const resultSeen = useRef(null);
 
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
@@ -112,6 +135,7 @@ function App() {
     setActiveAgent(null); setActiveNode(null); setFireKey(0);
     setActions(0); setReplans(0); setApproval(null); setDone(false); setPhoneStatus('idle'); autoPhone.current = false;
     setMemory([]); setMetricSeries([]); setMetricMeta(null); setGoalText('');
+    setResultOpen(false); resultSeen.current = null;
   }, []);
 
   /* ---- apply a full backend state snapshot ---- */
@@ -143,10 +167,16 @@ function App() {
     setMetricSeries(sp.values); setMetricMeta(sp.meta);
     setStatus(st); setPhase(L.mapPhase(st)); setDone(resolved);
     const pa = (data.pending_actions || [])[0];
-    setApproval(pa ? L.actionToApproval(pa) : null);
+    const ap = pa ? L.actionToApproval(pa) : null;
+    setApproval(ap);
     if (pa) {
       setPhoneStatus('pending');
-      setPhoneOpen(o => { if (!o) autoPhone.current = true; return true; });
+      if (ap && ap.kind === 'result') {
+        // research hand-off → pop the result modal once (don't hijack the phone)
+        if (resultSeen.current !== pa.action_id) { resultSeen.current = pa.action_id; setResultOpen(true); }
+      } else {
+        setPhoneOpen(o => { if (!o) autoPhone.current = true; return true; });
+      }
     } else {
       setPhoneStatus(s => (s === 'pending' ? 'idle' : s));
       if (autoPhone.current && !t.phoneDefault) { autoPhone.current = false; setPhoneOpen(false); }
@@ -392,6 +422,15 @@ function App() {
         <TweakToggle label="Ambient sound" value={t.sound} onChange={v => setTweak('sound', v)} />
         <TweakToggle label="Show Telegram by default" value={t.phoneDefault} onChange={v => setTweak('phoneDefault', v)} />
       </TweaksPanel>
+
+      <ResultModal
+        open={resultOpen && !!approval && approval.kind === 'result'}
+        goal={goalText}
+        recommendation={approval && approval.recommendation}
+        onApprove={() => { setResultOpen(false); onApprove(); }}
+        onReject={() => { setResultOpen(false); onReject(); }}
+        onClose={() => setResultOpen(false)}
+      />
     </div>
   );
 }

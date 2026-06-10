@@ -209,6 +209,15 @@ function agentForEvent(ev) {
   return 'execution';
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+/* light, XSS-safe markdown: escape first, then add only our own bold/link/break tags */
+function mdLite(s) {
+  let h = esc(s);
+  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  h = h.replace(/(^|[\s(])(https?:\/\/[^\s)]+)/g, (m, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
 function num(v) { return `<span class="num">${esc(v)}</span>`; }
 function em(v) { return `<span class="em">${esc(v)}</span>`; }
 
@@ -283,6 +292,8 @@ function actionToApproval(action) {
       rows: rec.split('\n').filter(Boolean).slice(0, 4).map(line => ['', line.replace(/^[-•]\s*/, '')]),
       approve: 'Approve', reject: 'Hold', integration: 'Hand-off',
       impact: p.impact || null,
+      kind: 'result',          // research hand-off → show as a result modal
+      recommendation: rec,     // full text for the modal
     };
   }
   return {
@@ -337,5 +348,5 @@ window.NERVE = { AGENTS, ORCH, AGENT_COLOR, MISSIONS, FLEET_GHOSTS };
 window.NERVE_LIVE = {
   mapPhase, isTerminal, nodeStateFor, buildGraph, buildMilestoneGraph,
   translateEvent, actionToApproval, beliefsToFacts, seriesToSparkline,
-  Api, getKnown, addKnown, FEED_NOISE,
+  Api, getKnown, addKnown, FEED_NOISE, mdLite,
 };

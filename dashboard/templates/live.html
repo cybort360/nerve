@@ -522,6 +522,24 @@ body {
 .live-link { color: #46d39a; border-color: rgba(70,211,154,.42); }
 .live-link:hover { border-color: rgba(70,211,154,.75); background: rgba(70,211,154,.08); }
 
+/* ---- research result modal (live dashboard) ---- */
+.result-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(3,6,7,.72);backdrop-filter:blur(6px);animation:resultIn .25s ease;}
+.result-card{position:relative;width:min(560px,92vw);max-height:84vh;overflow:auto;background:linear-gradient(180deg,#0e1416,#0a0f11);border:1px solid rgba(63,224,197,.28);border-radius:16px;padding:30px 30px 24px;box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.result-close{position:absolute;top:14px;right:16px;background:none;border:none;color:#5d6e6c;font-size:15px;cursor:pointer;padding:4px;line-height:1;}
+.result-close:hover{color:#eafdf8;}
+.result-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(70,211,154,.12);color:#46d39a;margin-bottom:14px;}
+.result-icon svg{width:24px;height:24px;}
+.result-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#46d39a;margin-bottom:7px;}
+.result-goal{font-family:'Chakra Petch',sans-serif;font-size:18px;font-weight:600;color:#eafdf8;margin-bottom:16px;line-height:1.3;}
+.result-body{font-size:14px;line-height:1.65;color:#c4d4d0;}
+.result-body strong{color:#eafdf8;}
+.result-body a{color:#3fe0c5;text-decoration:none;border-bottom:1px solid rgba(63,224,197,.4);}
+.result-body a:hover{border-color:#3fe0c5;}
+.result-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;}
+.result-hint{display:flex;align-items:center;gap:6px;margin-top:14px;font-size:11px;color:#5d6e6c;}
+.result-hint svg{width:12px;height:12px;}
+@keyframes resultIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+
 </style>
 </head>
 <body>
@@ -793,6 +811,15 @@ function agentForEvent(ev) {
   return 'execution';
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+/* light, XSS-safe markdown: escape first, then add only our own bold/link/break tags */
+function mdLite(s) {
+  let h = esc(s);
+  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  h = h.replace(/(^|[\s(])(https?:\/\/[^\s)]+)/g, (m, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
 function num(v) { return `<span class="num">${esc(v)}</span>`; }
 function em(v) { return `<span class="em">${esc(v)}</span>`; }
 
@@ -867,6 +894,8 @@ function actionToApproval(action) {
       rows: rec.split('\n').filter(Boolean).slice(0, 4).map(line => ['', line.replace(/^[-•]\s*/, '')]),
       approve: 'Approve', reject: 'Hold', integration: 'Hand-off',
       impact: p.impact || null,
+      kind: 'result',          // research hand-off → show as a result modal
+      recommendation: rec,     // full text for the modal
     };
   }
   return {
@@ -921,7 +950,7 @@ window.NERVE = { AGENTS, ORCH, AGENT_COLOR, MISSIONS, FLEET_GHOSTS };
 window.NERVE_LIVE = {
   mapPhase, isTerminal, nodeStateFor, buildGraph, buildMilestoneGraph,
   translateEvent, actionToApproval, beliefsToFacts, seriesToSparkline,
-  Api, getKnown, addKnown, FEED_NOISE,
+  Api, getKnown, addKnown, FEED_NOISE, mdLite,
 };
 
 </script>
@@ -2276,6 +2305,27 @@ const STATE_EVENTS = new Set([
 ]);
 const POLL_MS = 4000;
 
+/* Center-screen result modal shown when a research mission produces its hand-off. */
+function ResultModal({ open, goal, recommendation, onApprove, onReject, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="result-overlay" onClick={onClose}>
+      <div className="result-card" onClick={(e) => e.stopPropagation()}>
+        <button className="result-close" onClick={onClose} aria-label="Close">✕</button>
+        <div className="result-icon"><Icon name="check" /></div>
+        <div className="result-badge">Research complete</div>
+        {goal && <div className="result-goal">{goal}</div>}
+        <div className="result-body" dangerouslySetInnerHTML={{ __html: L.mdLite(recommendation || '') }} />
+        <div className="result-actions">
+          <button className="ac-btn reject" onClick={onReject}>Hold</button>
+          <button className="ac-btn approve" onClick={onApprove}>Approve</button>
+        </div>
+        <div className="result-hint"><CtrlIcon name="phone" />Also sent to your phone via Telegram</div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [view, setView] = useState('incident');
   const preset = window.NERVE.MISSIONS[view];
@@ -2303,6 +2353,8 @@ function App() {
   const [metricMeta, setMetricMeta] = useState(null);
   const [fleetMissions, setFleetMissions] = useState([]);
   const [goalText, setGoalText] = useState('');  // the real goal of the running mission
+  const [resultOpen, setResultOpen] = useState(false);  // research result modal
+  const resultSeen = useRef(null);
 
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
@@ -2355,6 +2407,7 @@ function App() {
     setActiveAgent(null); setActiveNode(null); setFireKey(0);
     setActions(0); setReplans(0); setApproval(null); setDone(false); setPhoneStatus('idle'); autoPhone.current = false;
     setMemory([]); setMetricSeries([]); setMetricMeta(null); setGoalText('');
+    setResultOpen(false); resultSeen.current = null;
   }, []);
 
   /* ---- apply a full backend state snapshot ---- */
@@ -2386,10 +2439,16 @@ function App() {
     setMetricSeries(sp.values); setMetricMeta(sp.meta);
     setStatus(st); setPhase(L.mapPhase(st)); setDone(resolved);
     const pa = (data.pending_actions || [])[0];
-    setApproval(pa ? L.actionToApproval(pa) : null);
+    const ap = pa ? L.actionToApproval(pa) : null;
+    setApproval(ap);
     if (pa) {
       setPhoneStatus('pending');
-      setPhoneOpen(o => { if (!o) autoPhone.current = true; return true; });
+      if (ap && ap.kind === 'result') {
+        // research hand-off → pop the result modal once (don't hijack the phone)
+        if (resultSeen.current !== pa.action_id) { resultSeen.current = pa.action_id; setResultOpen(true); }
+      } else {
+        setPhoneOpen(o => { if (!o) autoPhone.current = true; return true; });
+      }
     } else {
       setPhoneStatus(s => (s === 'pending' ? 'idle' : s));
       if (autoPhone.current && !t.phoneDefault) { autoPhone.current = false; setPhoneOpen(false); }
@@ -2635,6 +2694,15 @@ function App() {
         <TweakToggle label="Ambient sound" value={t.sound} onChange={v => setTweak('sound', v)} />
         <TweakToggle label="Show Telegram by default" value={t.phoneDefault} onChange={v => setTweak('phoneDefault', v)} />
       </TweaksPanel>
+
+      <ResultModal
+        open={resultOpen && !!approval && approval.kind === 'result'}
+        goal={goalText}
+        recommendation={approval && approval.recommendation}
+        onApprove={() => { setResultOpen(false); onApprove(); }}
+        onReject={() => { setResultOpen(false); onReject(); }}
+        onClose={() => setResultOpen(false)}
+      />
     </div>
   );
 }
