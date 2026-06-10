@@ -309,6 +309,7 @@ function actionToApproval(action) {
 
 /* ---------------- backend API client ---------------- */
 const Api = {
+  _check(res) { if (res.status === 401) { location.href = '/login'; throw new Error('unauthorized'); } return res; },
   async startDemo() { const r = await fetch('/demo/start'); return r.json(); },
   async createMission(goal, mission_type) {
     const r = await fetch('/missions', {
@@ -317,8 +318,8 @@ const Api = {
     });
     return r.json();
   },
-  async getState(id) { const r = await fetch(`/missions/${id}`); if (!r.ok) throw new Error('state ' + r.status); return r.json(); },
-  async listMissions() { try { const r = await fetch('/missions'); if (!r.ok) return []; const d = await r.json(); return (d && d.missions) || []; } catch (e) { return []; } },
+  async getState(id) { const r = this._check(await fetch(`/missions/${id}`)); if (!r.ok) throw new Error('state ' + r.status); return r.json(); },
+  async listMissions() { try { const r = await fetch('/missions'); if (r.status === 401) { location.href = '/login'; return []; } if (!r.ok) return []; const d = await r.json(); return (d && d.missions) || []; } catch (e) { return []; } },
   async approve(id) {
     return fetch(`/actions/${id}/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
