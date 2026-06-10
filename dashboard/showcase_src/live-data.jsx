@@ -124,8 +124,33 @@ function buildGraph(tasks) {
 /* ---------------- event → feed item ---------------- */
 const FEED_NOISE = new Set([
   'SNAPSHOT_TAKEN', 'MCP_TOOL_RESULT', 'MCP_TOOL_CALLED', 'AGENT_OBSERVATION',
-  'RESOLUTION_CHECK', 'RISK_SCORE_UPDATED',
+  'RESOLUTION_CHECK', 'RISK_SCORE_UPDATED', 'METRIC_SAMPLE', 'BELIEF_UPDATED',
 ]);
+
+/* beliefs (backend working memory) → MemoryPanel facts */
+function beliefsToFacts(beliefs) {
+  return (beliefs || []).map(b => ({
+    k: b.key, label: b.label, v: b.value, conf: b.confidence, op: b.op, ver: b.version,
+  }));
+}
+
+/* metric samples → sparkline {values, meta}; meta drives label/unit/baseline */
+function seriesToSparkline(samples) {
+  const s = samples || [];
+  if (!s.length) return { values: [], meta: null };
+  const latest = s[s.length - 1];
+  const unit = latest.unit || '';
+  return {
+    values: s.map(x => x.value),
+    meta: {
+      label: latest.label || 'metric',
+      unit,
+      baseline: latest.baseline != null ? latest.baseline : null,
+      lowerBetter: unit === '%' || unit === 'ms' || unit === '$',
+      prefix: unit === '$' ? '$' : undefined,
+    },
+  };
+}
 
 /* Incident milestone graph — the demo emits milestone events but no task rows,
    so we light a fixed incident pipeline from the REAL events that arrive. */
@@ -246,6 +271,7 @@ function actionToApproval(action) {
         p.confidence != null ? ['Confidence', `${Math.round(p.confidence * 100)}%`] : null,
       ].filter(Boolean),
       approve: 'Approve rollback', reject: 'Hold', integration: 'GitLab pipeline',
+      impact: p.impact || null,
     };
   }
   if (type === 'human_approval_request') {
@@ -256,13 +282,14 @@ function actionToApproval(action) {
       detail: esc(firstLine),
       rows: rec.split('\n').filter(Boolean).slice(0, 4).map(line => ['', line.replace(/^[-•]\s*/, '')]),
       approve: 'Approve', reject: 'Hold', integration: 'Hand-off',
+      impact: p.impact || null,
     };
   }
   return {
     action_id: action.action_id, title: `Approve ${esc(type)}`,
     detail: esc(JSON.stringify(p).slice(0, 160)),
-    rows: Object.entries(p).slice(0, 4).map(([k, v]) => [k, esc(typeof v === 'object' ? JSON.stringify(v).slice(0, 28) : v)]),
-    approve: 'Approve', reject: 'Hold', integration: 'Action',
+    rows: Object.entries(p).filter(([k]) => k !== 'impact').slice(0, 4).map(([k, v]) => [k, esc(typeof v === 'object' ? JSON.stringify(v).slice(0, 28) : v)]),
+    approve: 'Approve', reject: 'Hold', integration: 'Action', impact: p.impact || null,
   };
 }
 
@@ -277,6 +304,7 @@ const Api = {
     return r.json();
   },
   async getState(id) { const r = await fetch(`/missions/${id}`); if (!r.ok) throw new Error('state ' + r.status); return r.json(); },
+  async listMissions() { try { const r = await fetch('/missions'); if (!r.ok) return []; const d = await r.json(); return (d && d.missions) || []; } catch (e) { return []; } },
   async approve(id) {
     return fetch(`/actions/${id}/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -308,5 +336,6 @@ function addKnown(id, type) {
 window.NERVE = { AGENTS, ORCH, AGENT_COLOR, MISSIONS, FLEET_GHOSTS };
 window.NERVE_LIVE = {
   mapPhase, isTerminal, nodeStateFor, buildGraph, buildMilestoneGraph,
-  translateEvent, actionToApproval, Api, getKnown, addKnown, FEED_NOISE,
+  translateEvent, actionToApproval, beliefsToFacts, seriesToSparkline,
+  Api, getKnown, addKnown, FEED_NOISE,
 };

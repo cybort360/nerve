@@ -29,6 +29,7 @@ const STATE_EVENTS = new Set([
   'MISSION_STATUS_CHANGED', 'ACTION_CREATED', 'ACTION_APPROVED', 'ACTION_REJECTED',
   'ACTION_EXECUTED', 'DEMO_APPROVAL_REQUESTED', 'REPLAN_TRIGGERED',
   'RISK_SCORE_UPDATED', 'FAILURE_INJECTED', 'FAILURE_CLEARED', 'RESEARCH_SYNTHESIZED',
+  'BELIEF_UPDATED', 'METRIC_SAMPLE',
 ]);
 const POLL_MS = 4000;
 
@@ -54,6 +55,10 @@ function App() {
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneStatus, setPhoneStatus] = useState('idle');
   const [connected, setConnected] = useState(false);
+  const [memory, setMemory] = useState([]);
+  const [metricSeries, setMetricSeries] = useState([]);
+  const [metricMeta, setMetricMeta] = useState(null);
+  const [fleetMissions, setFleetMissions] = useState([]);
 
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
@@ -105,6 +110,7 @@ function App() {
     setPhase('Ready'); setStatus('pending'); setTargetRisk(6); riskRef.current = 6; setDispRisk(6);
     setActiveAgent(null); setActiveNode(null); setFireKey(0);
     setActions(0); setReplans(0); setApproval(null); setDone(false); setPhoneStatus('idle'); autoPhone.current = false;
+    setMemory([]); setMetricSeries([]); setMetricMeta(null);
   }, []);
 
   /* ---- apply a full backend state snapshot ---- */
@@ -130,6 +136,9 @@ function App() {
       setActiveNode(act ? act.id : null);
     }
     if (typeof data.risk === 'number') setTargetRisk(Math.round(data.risk * 100));
+    setMemory(L.beliefsToFacts(data.beliefs));
+    const sp = L.seriesToSparkline(data.metric_series);
+    setMetricSeries(sp.values); setMetricMeta(sp.meta);
     setStatus(st); setPhase(L.mapPhase(st)); setDone(resolved);
     const pa = (data.pending_actions || [])[0];
     setApproval(pa ? L.actionToApproval(pa) : null);
@@ -242,6 +251,15 @@ function App() {
     return () => clearTimeout(h);
   }, [t.autoChaos, stage, done, approval]); // eslint-disable-line
 
+  /* real fleet roster from the backend */
+  useEffect(() => {
+    let stop = false;
+    const tick = () => L.Api.listMissions().then(ms => { if (!stop) setFleetMissions(ms || []); });
+    tick();
+    const h = setInterval(tick, 6000);
+    return () => { stop = true; clearInterval(h); };
+  }, []);
+
   /* derived */
   const band = bandColor(dispRisk);
   const confidence = Math.max(2, Math.min(99, Math.round(100 - dispRisk)));
@@ -280,7 +298,8 @@ function App() {
         </div>
 
         <Fleet missions={Object.values(window.NERVE.MISSIONS)} currentId={view}
-          statusOf={statusOf} awaiting={!!approval} onSelect={(mid) => setView(mid)} />
+          statusOf={statusOf} awaiting={!!approval} onSelect={(mid) => setView(mid)}
+          recent={fleetMissions} />
 
         <div className="hdr-spacer" />
 
@@ -308,10 +327,10 @@ function App() {
             risk={dispRisk} confidence={confidence} running={ticking}
             activeAgent={activeAgent} fireKey={fireKey} agents={window.NERVE.AGENTS}
             replans={replans} actions={actions}
-            series={[]} metric={preset.metric} baseline={preset.metric.baseline}
+            series={metricSeries} metric={metricMeta || preset.metric} baseline={(metricMeta || preset.metric).baseline}
             coherence={coherence}
           />
-          <MemoryPanel facts={[]} />
+          <MemoryPanel facts={memory} />
         </div>
 
         <div className="col center">

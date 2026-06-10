@@ -1555,7 +1555,7 @@ function GoalLauncher({ mission, onLaunch }) {
 }
 
 /* ---------------- fleet roster ---------------- */
-function Fleet({ missions, currentId, statusOf, awaiting, onSelect }) {
+function Fleet({ missions, currentId, statusOf, awaiting, onSelect, recent }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
   React.useEffect(() => {
@@ -1563,19 +1563,35 @@ function Fleet({ missions, currentId, statusOf, awaiting, onSelect }) {
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
   }, []);
   const ghosts = window.NERVE.FLEET_GHOSTS;
-  const liveCount = missions.length + ghosts.filter(g => g.status === 'running').length;
+  const live = recent || [];
+  const liveColor = (s) => s === 'resolved' ? '#46d39a' : s === 'failed' ? '#ff6a72'
+    : (s === 'executing' || s === 'replanning') ? '#3fe0c5' : '#5d6e6c';
+  const liveCount = (live.length || missions.length) + ghosts.filter(g => g.status === 'running').length;
   return (
     <div className="fleet" ref={ref}>
       <button className="fleet-btn" onClick={() => setOpen(o => !o)}>
         <span className="fdots">
-          {missions.map(m => { const s = statusOf(m.id); return <i key={m.id} style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />; })}
+          {(live.length ? live.slice(0, 6).map(m => ({ id: m.mission_id, color: liveColor(m.status) }))
+                        : missions.map(m => ({ id: m.id, color: statusOf(m.id).color })))
+            .map(d => <i key={d.id} style={{ background: d.color, boxShadow: `0 0 6px ${d.color}` }} />)}
           {ghosts.map(g => <i key={g.id} style={{ background: g.status === 'running' ? '#46d39a' : '#3a4745' }} />)}
         </span>
         Fleet · {liveCount}{awaiting ? ' · 1 awaiting you' : ''}
       </button>
       {open && (
         <div className="fleet-pop">
-          <div className="fp-hd">Active missions</div>
+          {live.length > 0 && <div className="fp-hd">Live · backend</div>}
+          {live.map(m => {
+            const col = liveColor(m.status);
+            return (
+              <div className="fleet-item ghost" key={m.mission_id}>
+                <span className="fi-dot" style={{ background: col, boxShadow: `0 0 7px ${col}` }} />
+                <div className="fi-body"><div className="fi-nm">{(m.goal || 'mission').slice(0, 30)}</div><div className="fi-sub">{m.mission_type}</div></div>
+                <span className="fi-st" style={{ color: col }}>{m.status}</span>
+              </div>
+            );
+          })}
+          <div className="fp-hd">{live.length ? 'Mission types' : 'Active missions'}</div>
           {missions.map(m => {
             const s = statusOf(m.id);
             return (
