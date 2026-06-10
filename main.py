@@ -92,6 +92,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         Control to the running application.
     """
     configure_logging()
+    if settings.google_cloud_project:
+        import vertexai
+
+        vertexai.init(
+            project=settings.google_cloud_project,
+            location=settings.google_cloud_location,
+        )
+        log.info("vertexai_initialized", project=settings.google_cloud_project, location=settings.google_cloud_location)
     client = await connect_to_mongo()
     app.state.mongo_client = client
     app.state.db = client[settings.mongodb_database]

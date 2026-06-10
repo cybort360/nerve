@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     )
 
     # --- Google Cloud / Gemini ---
-    google_cloud_project: str = Field(description="GCP project ID hosting Vertex AI.")
+    google_cloud_project: str = Field(default="", description="GCP project ID hosting Vertex AI.")
     google_cloud_location: str = Field(
         default="us-central1", description="Region for Gemini API calls."
     )
