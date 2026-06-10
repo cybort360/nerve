@@ -150,7 +150,20 @@ class _DemoGitLabClient(GitLabClient):
         self._demo_state = demo_state
 
     async def trigger_pipeline(self, project_id: str, ref: str, variables: dict):  # type: ignore[override]
-        result = await super().trigger_pipeline(project_id, ref, variables)
+        """Trigger the real rollback pipeline, but never let the demo stall.
+
+        If the configured project cannot actually trigger a pipeline (e.g. no CI
+        config → GitLab 400), the demo still recovers: we log the failure, flip
+        the seeded service to healthy, and return a synthetic pipeline so the
+        approved rollback completes and the incident resolves.
+        """
+        from mcp_tools.gitlab import GitLabPipeline
+
+        try:
+            result = await super().trigger_pipeline(project_id, ref, variables)
+        except MCPError as exc:
+            log.warning("demo_real_pipeline_failed_recovering_anyway", ref=ref, error=str(exc))
+            result = GitLabPipeline(id=0, status="created", ref=ref, sha=None)
         self._demo_state.rolled_back = True
         return result
 
