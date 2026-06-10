@@ -43,7 +43,7 @@ steps:
       - --set-secrets=MONGODB_URI=nerve-mongodb-uri:latest,DYNATRACE_API_TOKEN=nerve-dynatrace-api-token:latest,GITLAB_TOKEN=nerve-gitlab-token:latest,TELEGRAM_BOT_TOKEN=nerve-telegram-bot-token:latest
       # The app's config.py also requires non-secret env vars to boot. Provide them
       # here (uncomment + fill) or via `gcloud run services update`:
-      # - --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,DYNATRACE_ENVIRONMENT_URL=https://xxxx.live.dynatrace.com,GITLAB_URL=https://gitlab.com,GITLAB_PROJECT_ID=123,GEMINI_MODEL=gemini-2.0-flash-001
+      # - --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,DYNATRACE_ENVIRONMENT_URL=https://xxxx.live.dynatrace.com,GITLAB_URL=https://gitlab.com,GITLAB_PROJECT_ID=123,GEMINI_MODEL=gemini-2.5-flash
       # The background orchestration loop needs CPU when no request is in flight:
       # - --no-cpu-throttling
       # - --min-instances=1

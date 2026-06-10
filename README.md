@@ -96,7 +96,7 @@ deploy to Cloud Run** with the `--set-secrets` bindings for `MONGODB_URI`,
 > `--set-env-vars` line in `cloudbuild.yaml`, or:
 > ```bash
 > gcloud run services update nerve --region us-central1 \
->   --set-env-vars=GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,DYNATRACE_ENVIRONMENT_URL=https://xxxx.live.dynatrace.com,GITLAB_URL=https://gitlab.com,GITLAB_PROJECT_ID=123,GEMINI_MODEL=gemini-2.0-flash-001
+>   --set-env-vars=GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,DYNATRACE_ENVIRONMENT_URL=https://xxxx.live.dynatrace.com,GITLAB_URL=https://gitlab.com,GITLAB_PROJECT_ID=123,GEMINI_MODEL=gemini-2.5-flash
 > ```
 
 > **Note — background loop:** the orchestration loop runs as a background asyncio
