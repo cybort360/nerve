@@ -17,14 +17,24 @@ _LIVE_CLASSIC_HTML = _TEMPLATES / "live-classic.html"
 
 @router.get("/", include_in_schema=False)
 async def dashboard_index() -> FileResponse:
-    """Serve the showcase mission dashboard (self-contained, scripted demo)."""
-    return FileResponse(_INDEX_HTML)
+    """Serve the LIVE dashboard (showcase UI driven by the real mission API).
+
+    This is the front door — visitors run real missions here. The scripted,
+    always-on demo is at ``/showcase``.
+    """
+    return FileResponse(_LIVE_HTML)
 
 
 @router.get("/live", include_in_schema=False)
 async def dashboard_live() -> FileResponse:
-    """Serve the live dashboard: showcase UI driven by the real mission API."""
+    """Alias for the live dashboard (same as ``/``)."""
     return FileResponse(_LIVE_HTML)
+
+
+@router.get("/showcase", include_in_schema=False)
+async def dashboard_showcase() -> FileResponse:
+    """Serve the self-contained scripted demo (no backend needed — always plays)."""
+    return FileResponse(_INDEX_HTML)
 
 
 @router.get("/live-classic", include_in_schema=False)
