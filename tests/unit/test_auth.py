@@ -23,3 +23,25 @@ def test_long_password_does_not_crash():
     long = "a" * 200  # > 72 bytes
     h = hash_password(long)
     assert verify_password(long, h) is True
+
+
+from auth.tokens import COOKIE_NAME, create_access_token, decode_token
+
+
+def test_token_roundtrip_returns_user_id():
+    tok = create_access_token("user-123")
+    assert decode_token(tok) == "user-123"
+
+
+def test_decode_rejects_tampered_token():
+    tok = create_access_token("user-123")
+    assert decode_token(tok + "x") is None
+
+
+def test_decode_rejects_expired_token():
+    tok = create_access_token("user-123", expires_minutes=-1)  # already expired
+    assert decode_token(tok) is None
+
+
+def test_cookie_name_is_stable():
+    assert COOKIE_NAME == "nerve_session"
