@@ -26,3 +26,17 @@ env/
 .playwright-mcp/
 live-*.jpeg
 page-*.jpeg
+
+# Internal docs — kept local, not published
+ARCHITECTURE.md
+CLAUDE.md
+PROMPTS.md
+DEMO-SCRIPT.md
+devpost_submission.md
+
+# Local agent/session + verification artifacts
+.claude/
+sp4-account-page.png
+prod-*.jpeg
+result-modal.jpeg
+styled-buttons.jpeg
