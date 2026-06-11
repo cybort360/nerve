@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 import structlog
 
@@ -19,6 +19,7 @@ from agents.execution_agent import ExecutionAgent
 from agents.planner_agent import PlannerAgent
 from agents.risk_agent import RiskAgent
 from config import settings
+from effective_config import resolve_effective_settings
 from exceptions import PlanningFailedError
 from mcp_tools.dynatrace import DynatraceClient
 from mcp_tools.gitlab import GitLabClient
@@ -59,7 +60,7 @@ class NERVEOrchestrator:
         self.risk_agent_factory: Callable[[str], RiskAgent] = lambda mid: RiskAgent(mid)
         self.auditor_agent_factory: Callable[[str], AuditorAgent] = lambda mid: AuditorAgent(mid)
         self.planner_agent_factory: Callable[[str], PlannerAgent] = lambda mid: PlannerAgent(mid)
-        self.execution_agent_factory: Callable[[str], ExecutionAgent] = self._default_execution_agent
+        self.execution_agent_factory: Callable[[str], Awaitable[ExecutionAgent]] = self._default_execution_agent
 
     @property
     def active_mission_ids(self) -> list[str]:
@@ -170,7 +171,7 @@ class NERVEOrchestrator:
         """Mark ready tasks in-progress and run them concurrently."""
         if not ready:
             return
-        agent = self.execution_agent_factory(mission_id)
+        agent = await self.execution_agent_factory(mission_id)
         await asyncio.gather(*(self._run_one(mission_id, agent, task) for task in ready))
 
     async def _run_one(self, mission_id: str, agent: ExecutionAgent, task: Task) -> None:
@@ -313,14 +314,26 @@ class NERVEOrchestrator:
             return injection.model_dump()
         return dict(injection)
 
-    def _default_execution_agent(self, mission_id: str) -> ExecutionAgent:
-        """Build an ExecutionAgent with MCP clients bound to the mission.
+    async def _default_execution_agent(self, mission_id: str) -> ExecutionAgent:
+        """Build an ExecutionAgent whose MCP clients use the mission owner's config.
 
-        NOTE: the returned clients are unconnected. Connection lifecycle for the
-        live execution path is finalized in the incident_autopilot module; until
-        then this default is exercised only with the failure-engine/demo wiring.
+        The owner's stored integration settings (Tavily/GitLab/Dynatrace) override
+        the global env defaults; an unconfigured owner falls back to global.
         """
-        dynatrace = DynatraceClient(mission_id=mission_id, failure_engine=self._failure_engine)
-        gitlab = GitLabClient(mission_id=mission_id, failure_engine=self._failure_engine)
-        web_search = WebSearchClient(mission_id=mission_id, failure_engine=self._failure_engine)
+        mission = await db.get_mission(mission_id)
+        eff = await resolve_effective_settings(mission.owner_id if mission else None)
+        dynatrace = DynatraceClient(
+            mission_id=mission_id, failure_engine=self._failure_engine,
+            server_url=(f"{eff.dynatrace_environment_url.rstrip('/')}/mcp" if eff.dynatrace_environment_url else None),
+            token=eff.dynatrace_api_token,
+        )
+        gitlab = GitLabClient(
+            mission_id=mission_id, failure_engine=self._failure_engine,
+            server_url=(f"{eff.gitlab_url.rstrip('/')}/api/v4" if eff.gitlab_url else None),
+            token=eff.gitlab_token,
+        )
+        web_search = WebSearchClient(
+            mission_id=mission_id, failure_engine=self._failure_engine,
+            api_key=eff.tavily_api_key, api_url=eff.tavily_api_url,
+        )
         return ExecutionAgent(mission_id, dynatrace, gitlab, web_search=web_search)

@@ -111,6 +111,7 @@ class DynatraceClient(BaseMCPClient):
         mission_id: str | None = None,
         failure_engine: Any | None = None,
         server_url: str | None = None,
+        token: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize from settings unless ``server_url`` is overridden.
@@ -119,10 +120,11 @@ class DynatraceClient(BaseMCPClient):
             mission_id: Mission to attribute audit events to.
             failure_engine: FailureEngine whose modifications to apply.
             server_url: Override the derived MCP endpoint URL.
+            token: Override the Dynatrace API token (defaults to settings).
             **kwargs: Forwarded retry/backoff overrides to the base client.
         """
         url = server_url or f"{settings.dynatrace_environment_url.rstrip('/')}/mcp"
-        headers = {"Authorization": f"Api-Token {settings.dynatrace_api_token}"}
+        headers = {"Authorization": f"Api-Token {token if token is not None else settings.dynatrace_api_token}"}
         super().__init__(
             SERVER_DYNATRACE,
             url,

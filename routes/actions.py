@@ -130,7 +130,7 @@ async def _maybe_trigger_execution(app: object, action: Action) -> None:
     task = await db.create_task(
         action.mission_id, "execution", f"Execute approved {action.action_type} (action {action.action_id})"
     )
-    agent = app.state.orchestrator.execution_agent_factory(action.mission_id)
+    agent = await app.state.orchestrator.execution_agent_factory(action.mission_id)
     tool_args = {
         "project_id": settings.gitlab_project_id,
         "ref": action.payload.get("ref", "main"),

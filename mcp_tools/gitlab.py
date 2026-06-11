@@ -140,6 +140,7 @@ class GitLabClient(BaseMCPClient):
         mission_id: str | None = None,
         failure_engine: Any | None = None,
         server_url: str | None = None,
+        token: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize from settings unless ``server_url`` overrides the REST base.
@@ -148,10 +149,11 @@ class GitLabClient(BaseMCPClient):
             mission_id: Mission to attribute audit events to.
             failure_engine: FailureEngine whose modifications to apply.
             server_url: Override the derived ``/api/v4`` base URL.
+            token: Override the GitLab private token (defaults to settings).
             **kwargs: Forwarded retry/backoff overrides to the base client.
         """
         base = server_url or f"{settings.gitlab_url.rstrip('/')}/api/v4"
-        headers = {"PRIVATE-TOKEN": settings.gitlab_token}
+        headers = {"PRIVATE-TOKEN": token if token is not None else settings.gitlab_token}
         super().__init__(
             SERVER_GITLAB,
             base,

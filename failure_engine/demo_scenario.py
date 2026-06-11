@@ -364,9 +364,11 @@ class DemoScenario:
         from mcp_tools.web_search import WebSearchClient
 
         engine = self._engine
-        orchestrator.execution_agent_factory = lambda mid: ExecutionAgent(
-            mid, dynatrace, gitlab, web_search=WebSearchClient(mission_id=mid, failure_engine=engine)
-        )
+
+        async def _demo_execution_agent(mid: str) -> ExecutionAgent:
+            return ExecutionAgent(mid, dynatrace, gitlab, web_search=WebSearchClient(mission_id=mid, failure_engine=engine))
+
+        orchestrator.execution_agent_factory = _demo_execution_agent
         await self._launch_workflow(orchestrator, dynatrace, gitlab, mission_id, seeded_deployment)
         await self._drive_timeline(mission_id)
 

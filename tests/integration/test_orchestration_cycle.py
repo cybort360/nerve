@@ -44,7 +44,10 @@ def _orchestrator_with_stubs(risk: float) -> tuple[NERVEOrchestrator, dict]:
     orch = NERVEOrchestrator()
     orch.risk_agent_factory = lambda mid: risk_agent
     orch.auditor_agent_factory = lambda mid: auditor
-    orch.execution_agent_factory = lambda mid: execution
+    async def _exec_factory(mid: str) -> _StubExecutionAgent:
+        return execution
+
+    orch.execution_agent_factory = _exec_factory
     return orch, {"risk": risk_agent, "auditor": auditor, "execution": execution}
 
 
