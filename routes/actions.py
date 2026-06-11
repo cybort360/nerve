@@ -66,7 +66,9 @@ async def approve_action(
     )
     await _maybe_trigger_execution(request.app, updated)
     await telegram_notifier.send_notification(
-        f"✅ Action approved via dashboard by {body.approved_by}", level=NOTIFY_LEVEL_SUCCESS
+        f"✅ Action approved via dashboard by {body.approved_by}",
+        level=NOTIFY_LEVEL_SUCCESS,
+        mission_id=action.mission_id,
     )
     log.info("action_approved", action_id=action_id, approved_by=body.approved_by)
     return updated
@@ -102,7 +104,9 @@ async def reject_action(
         SOURCE_USER,
     )
     await telegram_notifier.send_notification(
-        "❌ Action rejected via dashboard", level=NOTIFY_LEVEL_WARNING
+        "❌ Action rejected via dashboard",
+        level=NOTIFY_LEVEL_WARNING,
+        mission_id=action.mission_id,
     )
     log.info("action_rejected", action_id=action_id, reason=body.reason)
     return updated

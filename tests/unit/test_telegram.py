@@ -52,6 +52,8 @@ def _make_callback_update(data: str):
 
 async def test_send_approval_request_formats_message_and_keyboard(monkeypatch, fake_bot):
     notifier = _enabled_notifier(monkeypatch)
+    # No mission in db → _chat_for_mission falls back to the global chat "999"
+    monkeypatch.setattr(tb.db, "get_mission", AsyncMock(return_value=None))
 
     await notifier.send_approval_request(
         "act-1", "gitlab_rollback", "Roll back deployment 7.", "mis-1"
@@ -79,18 +81,35 @@ async def test_send_approval_request_formats_message_and_keyboard(monkeypatch, f
 )
 async def test_send_notification_prefixes_level_emoji(monkeypatch, fake_bot, level, emoji):
     notifier = _enabled_notifier(monkeypatch)
+    # No mission_id → _chat_for_mission returns the global chat "999"
+    # (no db call needed when mission_id is None)
 
     await notifier.send_notification("system nominal", level=level)
 
     assert fake_bot.send_message.await_args.kwargs["text"] == f"{emoji} system nominal"
 
 
+def _make_callback_update_with_chat(data: str, chat_id: str = "999"):
+    """Build a fake Update where message.chat.id carries the sender chat."""
+    query = MagicMock()
+    query.data = data
+    query.answer = AsyncMock()
+    query.edit_message_text = AsyncMock()
+    query.from_user = SimpleNamespace(username="ops", full_name="Ops Eng", id=chat_id)
+    query.message = SimpleNamespace(text="original message", chat=SimpleNamespace(id=chat_id))
+    return SimpleNamespace(callback_query=query), query
+
+
 async def test_approve_callback_calls_update_action_status_approved(monkeypatch, fake_bot):
     notifier = _enabled_notifier(monkeypatch)
     update_status = AsyncMock()
     monkeypatch.setattr(tb.db, "update_action_status", update_status)
-    monkeypatch.setattr(tb.db, "get_action", AsyncMock(return_value=None))  # skip audit emit
-    update, query = _make_callback_update("approve:act-9")
+    # action must exist with a mission_id so _authorized can run; global chat "999" is authorized
+    monkeypatch.setattr(
+        tb.db, "get_action", AsyncMock(return_value=SimpleNamespace(mission_id="mis-9"))
+    )
+    monkeypatch.setattr(tb.db, "emit_event", AsyncMock())
+    update, query = _make_callback_update_with_chat("approve:act-9", chat_id="999")
 
     await notifier._on_callback(update, None)
 
@@ -103,8 +122,11 @@ async def test_reject_callback_calls_update_action_status_rejected(monkeypatch, 
     notifier = _enabled_notifier(monkeypatch)
     update_status = AsyncMock()
     monkeypatch.setattr(tb.db, "update_action_status", update_status)
-    monkeypatch.setattr(tb.db, "get_action", AsyncMock(return_value=None))
-    update, query = _make_callback_update("reject:act-9")
+    monkeypatch.setattr(
+        tb.db, "get_action", AsyncMock(return_value=SimpleNamespace(mission_id="mis-9"))
+    )
+    monkeypatch.setattr(tb.db, "emit_event", AsyncMock())
+    update, query = _make_callback_update_with_chat("reject:act-9", chat_id="999")
 
     await notifier._on_callback(update, None)
 
@@ -121,7 +143,7 @@ async def test_callback_emits_audit_event_when_action_exists(monkeypatch, fake_b
     )
     emit = AsyncMock()
     monkeypatch.setattr(tb.db, "emit_event", emit)
-    update, _ = _make_callback_update("approve:act-2")
+    update, _ = _make_callback_update_with_chat("approve:act-2", chat_id="999")
 
     await notifier._on_callback(update, None)
 
@@ -147,8 +169,17 @@ async def test_methods_are_noops_when_disabled(monkeypatch):
     assert built == []  # no Bot/Application ever constructed when disabled
 
 
-async def test_disabled_when_token_or_chat_missing(monkeypatch):
+async def test_disabled_when_token_missing(monkeypatch):
+    """Enabled requires the token; the global chat_id is now optional."""
     monkeypatch.setattr(tb.settings, "telegram_enabled", True)
     monkeypatch.setattr(tb.settings, "telegram_bot_token", "")
     monkeypatch.setattr(tb.settings, "telegram_chat_id", "999")
     assert tb.TelegramNotifier().enabled is False
+
+
+async def test_enabled_without_global_chat_id(monkeypatch):
+    """Token alone (no global chat) is sufficient to become enabled."""
+    monkeypatch.setattr(tb.settings, "telegram_enabled", True)
+    monkeypatch.setattr(tb.settings, "telegram_bot_token", "test-token")
+    monkeypatch.setattr(tb.settings, "telegram_chat_id", "")
+    assert tb.TelegramNotifier().enabled is True

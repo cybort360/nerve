@@ -68,8 +68,13 @@ class TelegramNotifier:
 
     @property
     def enabled(self) -> bool:
-        """True only when the flag is set and both token and chat id are present."""
-        return bool(self._flag and self._token and self._chat_id)
+        """True when the flag is set and a token is present.
+
+        A global chat id is no longer required: each send resolves the target
+        chat from the mission owner's settings, falling back to the global chat
+        only when available.
+        """
+        return bool(self._flag and self._token)
 
     # ----------------------------------------------------------------- #
     # Outbound messages
@@ -87,10 +92,13 @@ class TelegramNotifier:
         """
         if not self.enabled:
             return
+        chat = await self._chat_for_mission(mission_id)
         text = self._format_approval(action_id, action_type, description, mission_id)
-        await self._safe_send(text, reply_markup=self._approval_keyboard(action_id))
+        await self._safe_send(text, reply_markup=self._approval_keyboard(action_id), chat_id=chat)
 
-    async def send_notification(self, message: str, level: str = DEFAULT_LEVEL) -> None:
+    async def send_notification(
+        self, message: str, level: str = DEFAULT_LEVEL, mission_id: str | None = None
+    ) -> None:
         """Send a plain notification, prefixed with the level's emoji.
 
         The emoji prefix is skipped when ``message`` already begins with a status
@@ -99,10 +107,12 @@ class TelegramNotifier:
         Args:
             message: Notification body.
             level: One of ``info``/``success``/``warning``/``critical``.
+            mission_id: Optional mission to route this notification to the owner's chat.
         """
         if not self.enabled:
             return
-        await self._safe_send(self._apply_level(message, level))
+        chat = await self._chat_for_mission(mission_id)
+        await self._safe_send(self._apply_level(message, level), chat_id=chat)
 
     # ----------------------------------------------------------------- #
     # Polling lifecycle (local dev)
@@ -154,8 +164,9 @@ class TelegramNotifier:
     async def _on_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Apply an Approve/Reject button tap to the action's state.
 
-        Parses the action id, updates the action via the state layer, answers the
-        callback, and rewrites the original message to record the decision.
+        Parses the action id, authorizes the sender, updates the action via the
+        state layer, answers the callback, and rewrites the original message to
+        record the decision.
         """
         query = update.callback_query
         if query is None or not query.data:
@@ -164,19 +175,43 @@ class TelegramNotifier:
             decision, action_id = self._parse_callback(query.data)
             if decision is None:
                 return
-            await self._apply_decision(action_id, decision)
+            sender_chat = (
+                query.message.chat.id
+                if query.message is not None and query.message.chat is not None
+                else (query.from_user.id if query.from_user is not None else None)
+            )
+            applied = await self._apply_decision(action_id, decision, sender_chat)
+            if not applied:
+                await query.answer(text="Not authorized for this action")
+                return
             await query.answer(text=ANSWER_APPROVED if decision == STATUS_APPROVED else ANSWER_REJECTED)
             await query.edit_message_text(self._decision_text(query, decision))
             self._log.info("telegram_decision_applied", action_id=action_id, decision=decision)
         except Exception as exc:  # noqa: BLE001 — callback errors must never crash the bot
             self._log.warning("telegram_callback_failed", error=str(exc))
 
-    async def _apply_decision(self, action_id: str, decision: str) -> None:
-        """Update the action's status and emit the matching audit event."""
-        await db.update_action_status(action_id, decision, approved_by=APPROVED_BY_TELEGRAM)
+    async def _apply_decision(self, action_id: str, decision: str, sender_chat_id: object) -> bool:
+        """Authorize the sender, then update the action's status.
+
+        Args:
+            action_id: Action to approve or reject.
+            decision: ``"approved"`` or ``"rejected"``.
+            sender_chat_id: Telegram chat id of the button-tapper.
+
+        Returns:
+            ``True`` if the decision was applied; ``False`` if unauthorized or action not found.
+        """
         action = await db.get_action(action_id)
         if action is None:
-            return
+            return False
+        if not await self._authorized(action.mission_id, sender_chat_id):
+            self._log.warning(
+                "telegram_decision_unauthorized",
+                action_id=action_id,
+                chat=str(sender_chat_id),
+            )
+            return False
+        await db.update_action_status(action_id, decision, approved_by=APPROVED_BY_TELEGRAM)
         event_type = EVENT_ACTION_APPROVED if decision == STATUS_APPROVED else EVENT_ACTION_REJECTED
         await db.emit_event(
             action.mission_id,
@@ -184,6 +219,41 @@ class TelegramNotifier:
             {"action_id": action_id, "approved_by": APPROVED_BY_TELEGRAM},
             SOURCE_USER,
         )
+        return True
+
+    async def _authorized(self, mission_id: str, chat_id: object) -> bool:
+        """True if this Telegram chat may decide actions on the mission.
+
+        Args:
+            mission_id: Mission the action belongs to.
+            chat_id: Telegram chat id of the button-tapper.
+
+        Returns:
+            ``True`` if authorized (global/admin chat, or confirmed mission owner).
+        """
+        if chat_id is None:
+            return False
+        if self._chat_id and str(chat_id) == str(self._chat_id):
+            return True  # the configured global/admin chat
+        uid = await db.get_user_id_by_telegram_chat_id(str(chat_id))
+        return uid is not None and await db.get_owned_mission(mission_id, uid) is not None
+
+    async def _chat_for_mission(self, mission_id: str | None) -> str | None:
+        """Resolve the target chat: the mission owner's saved chat, else the global one.
+
+        Args:
+            mission_id: Mission identifier, or ``None`` to use the global chat.
+
+        Returns:
+            Telegram chat id string, or ``None`` if no chat is available.
+        """
+        if mission_id:
+            mission = await db.get_mission(mission_id)
+            if mission is not None and mission.owner_id:
+                us = await db.get_user_settings(mission.owner_id)
+                if us is not None and us.telegram_chat_id:
+                    return us.telegram_chat_id
+        return self._chat_id
 
     # ----------------------------------------------------------------- #
     # Formatting helpers
@@ -240,11 +310,27 @@ class TelegramNotifier:
     # ----------------------------------------------------------------- #
     # Low-level send
     # ----------------------------------------------------------------- #
-    async def _safe_send(self, text: str, *, reply_markup: InlineKeyboardMarkup | None = None) -> None:
-        """Send a message, swallowing and logging any Telegram/network failure."""
+    async def _safe_send(
+        self,
+        text: str,
+        *,
+        reply_markup: InlineKeyboardMarkup | None = None,
+        chat_id: str | None = None,
+    ) -> None:
+        """Send a message, swallowing and logging any Telegram/network failure.
+
+        Args:
+            text: Message body.
+            reply_markup: Optional inline keyboard to attach.
+            chat_id: Target chat id; falls back to the global chat if ``None``.
+        """
+        target = chat_id or self._chat_id
+        if not target:
+            self._log.warning("telegram_no_chat")
+            return
         try:
             bot = await self._ensure_bot()
-            await bot.send_message(chat_id=self._chat_id, text=text, reply_markup=reply_markup)
+            await bot.send_message(chat_id=target, text=text, reply_markup=reply_markup)
         except Exception as exc:  # noqa: BLE001 — telegram failures must never crash NERVE
             self._log.warning("telegram_send_failed", error=str(exc))
 

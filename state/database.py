@@ -752,6 +752,23 @@ async def get_user_settings(user_id: str) -> UserSettings | None:
     return _to_model(UserSettings, doc, error_ctx=ctx)
 
 
+async def get_user_id_by_telegram_chat_id(chat_id: str) -> str | None:
+    """Return the user_id whose settings store this Telegram chat id, or None.
+
+    Args:
+        chat_id: Telegram chat id to look up.
+
+    Returns:
+        The matching user_id string, or ``None`` if no user has this chat id.
+    """
+    ctx = {"op": "get_user_id_by_telegram_chat_id"}
+    doc = await _execute_read(
+        lambda: get_user_settings_collection().find_one({"telegram_chat_id": str(chat_id)}),
+        error_ctx=ctx,
+    )
+    return doc.get("user_id") if doc else None
+
+
 async def upsert_user_settings(user_id: str, values: dict) -> UserSettings:
     """Create/replace a user's settings; secret fields are encrypted at rest.
 
