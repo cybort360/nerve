@@ -71,6 +71,7 @@ class Mission(_BaseDoc):
     mission_id: str = Field(default_factory=_uuid)
     goal: str
     mission_type: MissionType
+    owner_id: str | None = None
     status: MissionStatus = "pending"
     context: dict = Field(default_factory=dict)
     task_ids: list[str] = Field(default_factory=list)

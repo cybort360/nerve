@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(default="", description="HS256 signing key; set in prod. Empty => ephemeral per-instance secret.")
     jwt_expire_minutes: int = Field(default=10080, ge=1, description="Session lifetime in minutes (default 7 days).")
     cookie_secure: bool = Field(default=True, description="Set the session cookie Secure flag. Set false for local http (curl) testing.")
+    incidents_owner_email: str = Field(default="", description="Email of the user who owns Dynatrace-webhook incidents (no logged-in user). Empty => unowned.")
 
 
 settings = Settings()

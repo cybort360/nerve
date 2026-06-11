@@ -189,3 +189,35 @@ async def test_create_snapshot_summarizes_state(mock_db):
     stored = await db.get_snapshots_collection().find_one({"snapshot_id": snapshot.snapshot_id})
     assert stored is not None
     assert stored["cycle"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# Mission ownership (SP2 Task A)
+# --------------------------------------------------------------------------- #
+async def test_create_mission_stores_owner(mock_db):
+    m = await db.create_mission("g", "GENERAL", owner_id="user-1")
+    assert m.owner_id == "user-1"
+    fetched = await db.get_mission(m.mission_id)
+    assert fetched.owner_id == "user-1"
+
+
+async def test_create_mission_defaults_owner_none(mock_db):
+    m = await db.create_mission("g", "GENERAL")
+    assert m.owner_id is None
+
+
+async def test_list_recent_missions_filters_by_owner(mock_db):
+    await db.create_mission("a", "GENERAL", owner_id="user-1")
+    await db.create_mission("b", "GENERAL", owner_id="user-2")
+    await db.create_mission("c", "GENERAL", owner_id="user-1")
+    mine = await db.list_recent_missions(owner_id="user-1")
+    assert {m.goal for m in mine} == {"a", "c"}
+    all_missions = await db.list_recent_missions()  # no filter → all
+    assert len(all_missions) == 3
+
+
+async def test_get_owned_mission(mock_db):
+    m = await db.create_mission("g", "GENERAL", owner_id="user-1")
+    assert (await db.get_owned_mission(m.mission_id, "user-1")).mission_id == m.mission_id
+    assert await db.get_owned_mission(m.mission_id, "user-2") is None       # wrong owner
+    assert await db.get_owned_mission("nonexistent", "user-1") is None      # missing

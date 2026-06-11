@@ -148,6 +148,7 @@ async def ensure_indexes() -> None:
     await missions.create_index("mission_id", unique=True, background=True)
     await missions.create_index("status", background=True)
     await missions.create_index("created_at", background=True)
+    await missions.create_index("owner_id", background=True)
 
     tasks = get_tasks_collection()
     await tasks.create_index("task_id", unique=True, background=True)
@@ -289,7 +290,10 @@ async def _update_fields(
 # Missions
 # --------------------------------------------------------------------------- #
 async def create_mission(
-    goal: str, mission_type: MissionType, context: dict | None = None
+    goal: str,
+    mission_type: MissionType,
+    context: dict | None = None,
+    owner_id: str | None = None,
 ) -> Mission:
     """Insert a new mission.
 
@@ -297,11 +301,14 @@ async def create_mission(
         goal: Raw user goal text.
         mission_type: ``INCIDENT_RESPONSE`` or ``GENERAL``.
         context: Optional initial context payload.
+        owner_id: Optional user id that owns this mission.
 
     Returns:
         The created :class:`Mission`.
     """
-    mission = Mission(goal=goal, mission_type=mission_type, context=context or {})
+    mission = Mission(
+        goal=goal, mission_type=mission_type, context=context or {}, owner_id=owner_id
+    )
     ctx = {"mission_id": mission.mission_id, "op": "create_mission"}
     await _execute_write(
         lambda: get_missions_collection().insert_one(mission.model_dump()),
@@ -329,6 +336,22 @@ async def get_mission(mission_id: str) -> Mission | None:
         log.info("mission_not_found", mission_id=mission_id)
         return None
     return _to_model(Mission, doc, error_ctx=ctx)
+
+
+async def get_owned_mission(mission_id: str, user_id: str) -> Mission | None:
+    """Return the mission only if it exists AND is owned by ``user_id``; else None.
+
+    Args:
+        mission_id: Mission identifier.
+        user_id: The user id that must match ``mission.owner_id``.
+
+    Returns:
+        The :class:`Mission`, or ``None`` if it does not exist or is not owned by ``user_id``.
+    """
+    mission = await get_mission(mission_id)
+    if mission is None or mission.owner_id != user_id:
+        return None
+    return mission
 
 
 async def find_mission_by_problem_id(problem_id: str) -> Mission | None:
@@ -860,19 +883,24 @@ async def get_metric_series(
 # --------------------------------------------------------------------------- #
 # Missions — fleet listing
 # --------------------------------------------------------------------------- #
-async def list_recent_missions(limit: int = DEFAULT_LIST_MISSIONS_LIMIT) -> list[Mission]:
+async def list_recent_missions(
+    limit: int = DEFAULT_LIST_MISSIONS_LIMIT,
+    owner_id: str | None = None,
+) -> list[Mission]:
     """Return the most recently updated missions for the fleet roster.
 
     Args:
         limit: Maximum number of missions to return.
+        owner_id: If provided, return only missions owned by this user.
 
     Returns:
         List of :class:`Mission` ordered by ``updated_at`` descending.
     """
+    query: dict = {"owner_id": owner_id} if owner_id is not None else {}
     ctx = {"op": "list_recent_missions", "limit": limit}
     docs = await _execute_read(
         lambda: get_missions_collection()
-        .find()
+        .find(query)
         .sort("updated_at", DESCENDING)
         .limit(limit)
         .to_list(length=limit),
