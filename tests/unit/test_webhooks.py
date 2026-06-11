@@ -28,7 +28,7 @@ def configured(monkeypatch):
 
 
 def _request(orchestrator=None):
-    state = SimpleNamespace(orchestrator=orchestrator or SimpleNamespace(run_mission=AsyncMock()))
+    state = SimpleNamespace(orchestrator=orchestrator or SimpleNamespace(run_incident=AsyncMock()))
     return SimpleNamespace(app=SimpleNamespace(state=state))
 
 
@@ -40,7 +40,7 @@ def _open_payload(problem_id="P-1") -> DynatraceWebhookPayload:
 # PROBLEM_OPEN -> mission
 # --------------------------------------------------------------------------- #
 async def test_valid_open_creates_mission_and_starts_loop(mock_db, configured):
-    orch = SimpleNamespace(run_mission=AsyncMock())
+    orch = SimpleNamespace(run_incident=AsyncMock())
     resp = await webhooks.dynatrace_webhook(_open_payload("P-1"), _request(orch), x_dynatrace_signature=SECRET)
 
     assert resp["status"] == "mission_created"
@@ -49,7 +49,7 @@ async def test_valid_open_creates_mission_and_starts_loop(mock_db, configured):
     assert mission is not None
     assert mission.mission_type == "INCIDENT_RESPONSE"
     assert mission.context["problem_id"] == "P-1"
-    orch.run_mission.assert_awaited_once_with(mid)
+    orch.run_incident.assert_awaited_once_with(mid, "P-1", None)
 
     events = [(e.event_type, e.source) for e in await db.get_recent_events_for_mission(mid)]
     assert ("DYNATRACE_PROBLEM_OPEN", "dynatrace_webhook") in events
@@ -105,10 +105,10 @@ async def test_resolved_with_no_matching_mission(mock_db, configured):
 # --------------------------------------------------------------------------- #
 async def test_test_endpoint_works_in_demo_mode(mock_db, monkeypatch):
     monkeypatch.setattr(settings, "demo_mode", True)
-    orch = SimpleNamespace(run_mission=AsyncMock())
+    orch = SimpleNamespace(run_incident=AsyncMock())
     resp = await webhooks.dynatrace_webhook_test(_request(orch))
     assert resp["status"] == "mission_created"
-    orch.run_mission.assert_awaited_once()
+    orch.run_incident.assert_awaited_once()
     mission = await db.get_mission(resp["mission_id"])
     assert mission.context["problem_id"] == "DEMO-PROBLEM-1"
 

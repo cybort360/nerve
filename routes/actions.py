@@ -13,7 +13,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth.dependencies import current_user
-from config import settings
+from effective_config import resolve_effective_settings
 from notifications.telegram_bot import telegram_notifier
 from routes.schemas import ApproveRequest, RejectRequest
 from state import database as db
@@ -134,9 +134,11 @@ async def _maybe_trigger_execution(app: object, action: Action) -> None:
     task = await db.create_task(
         action.mission_id, "execution", f"Execute approved {action.action_type} (action {action.action_id})"
     )
+    mission = await db.get_mission(action.mission_id)
+    eff = await resolve_effective_settings(mission.owner_id if mission else None)
     agent = await app.state.orchestrator.execution_agent_factory(action.mission_id)
     tool_args = {
-        "project_id": settings.gitlab_project_id,
+        "project_id": eff.gitlab_project_id,
         "ref": action.payload.get("ref", "main"),
         "variables": {"ROLLBACK_TO": action.payload.get("sha")},
     }

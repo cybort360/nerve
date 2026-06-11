@@ -146,7 +146,7 @@ async def _handle_problem_open(app: Any, payload: DynatraceWebhookPayload) -> di
     await db.emit_event(
         mission.mission_id, EVENT_DYNATRACE_PROBLEM_OPEN, payload.model_dump(), SOURCE_DYNATRACE_WEBHOOK
     )
-    await app.state.orchestrator.run_mission(mission.mission_id)
+    await app.state.orchestrator.run_incident(mission.mission_id, payload.problem_id, owner_id)
     log.info("dynatrace_problem_opened", mission_id=mission.mission_id, problem_id=payload.problem_id)
     return {"status": "mission_created", "mission_id": mission.mission_id}
 
