@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NERVE — Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box} body{margin:0;min-height:100vh;
+    background:radial-gradient(1200px 600px at 50% -10%,rgba(63,224,197,.06),transparent),#06090b;
+    font-family:'Chakra Petch',sans-serif;color:#eafdf8;padding:32px 16px}
+  .wrap{max-width:640px;margin:0 auto}
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+  .mark{display:flex;align-items:center;gap:10px}
+  .mark .name{font-weight:700;letter-spacing:2px} .mark .name b{color:#3fe0c5}
+  .top a{color:#5d6e6c;font-size:13px;text-decoration:none;font-family:'IBM Plex Mono',monospace}
+  .top a:hover{color:#3fe0c5}
+  h1{font-size:20px;margin:0 0 4px} .lead{color:#5d6e6c;font-size:13px;margin-bottom:24px;font-family:'IBM Plex Mono',monospace}
+  .card{background:linear-gradient(180deg,#0e1416,#0a0f11);border:1px solid rgba(63,224,197,.18);border-radius:14px;padding:20px 22px;margin-bottom:18px}
+  .card h2{font-size:14px;margin:0 0 2px;letter-spacing:1px} .card .sub{color:#5d6e6c;font-size:12px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace}
+  label{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;color:#7f928f;margin:12px 0 5px;text-transform:uppercase}
+  input{width:100%;height:40px;padding:0 12px;background:#0a0f11;border:1px solid rgba(120,200,190,.18);border-radius:8px;color:#eafdf8;font-family:'IBM Plex Mono',monospace;font-size:13px}
+  input:focus{outline:none;border-color:#3fe0c5}
+  .bar{display:flex;align-items:center;gap:14px;position:sticky;bottom:0;padding:16px 0;background:linear-gradient(180deg,transparent,#06090b 40%)}
+  button{height:44px;padding:0 26px;border:none;border-radius:8px;background:#3fe0c5;color:#04211c;font-weight:600;font-size:14px;cursor:pointer;font-family:'Chakra Petch',sans-serif}
+  button:hover{box-shadow:0 0 22px -4px #3fe0c5}
+  .msg{font-family:'IBM Plex Mono',monospace;font-size:13px;min-height:16px}
+  .msg.ok{color:#46d39a} .msg.err{color:#ff6a72}
+  .hint{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5d6e6c;margin-top:5px}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="mark"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><path d="M3 19 C3 19 7 7 11 7 C15 7 13 21 17 21 C21 21 25 9 25 9" stroke="#3fe0c5" stroke-width="2" stroke-linecap="round"/><circle cx="3" cy="19" r="2.2" fill="#9d8bff"/><circle cx="25" cy="9" r="2.2" fill="#3fe0c5"/></svg><span class="name">N<b>E</b>RVE</span></div>
+    <div><a href="/">← Dashboard</a> &nbsp;&nbsp; <a href="#" onclick="signOut();return false">Sign out</a></div>
+  </div>
+  <h1>Settings</h1>
+  <div class="lead">Your integrations. Secrets are encrypted at rest and shown masked — leave a secret blank to keep the stored value.</div>
+
+  <div class="card">
+    <h2>Web Search</h2><div class="sub">Tavily — powers research missions</div>
+    <label>Tavily API key</label><input id="tavily_api_key" type="password" autocomplete="off"/>
+    <div class="hint" id="hint_tavily_api_key"></div>
+  </div>
+
+  <div class="card">
+    <h2>GitLab</h2><div class="sub">Incident rollbacks, issues, and merge requests</div>
+    <label>GitLab URL</label><input id="gitlab_url" placeholder="https://gitlab.com"/>
+    <label>Access token</label><input id="gitlab_token" type="password" autocomplete="off"/>
+    <div class="hint" id="hint_gitlab_token"></div>
+    <label>Project ID</label><input id="gitlab_project_id"/>
+  </div>
+
+  <div class="card">
+    <h2>Dynatrace</h2><div class="sub">Anomaly detection + metrics for incident autopilot</div>
+    <label>Environment URL</label><input id="dynatrace_environment_url" placeholder="https://xxx.live.dynatrace.com"/>
+    <label>API token</label><input id="dynatrace_api_token" type="password" autocomplete="off"/>
+    <div class="hint" id="hint_dynatrace_api_token"></div>
+    <label>Webhook secret</label><input id="dynatrace_webhook_secret" type="password" autocomplete="off"/>
+    <div class="hint" id="hint_dynatrace_webhook_secret"></div>
+  </div>
+
+  <div class="card">
+    <h2>Telegram</h2><div class="sub">Mobile approvals + notifications (per-user routing lands in a later update)</div>
+    <label>Your Telegram chat ID</label><input id="telegram_chat_id" placeholder="e.g. 123456789"/>
+    <div class="hint">Message the NERVE bot, then paste the chat ID it reports here.</div>
+  </div>
+
+  <div class="bar"><button onclick="save()">Save settings</button><span class="msg" id="msg"></span></div>
+</div>
+<script>
+  const SECRET = ['tavily_api_key','gitlab_token','dynatrace_api_token','dynatrace_webhook_secret'];
+  const PLAIN = ['gitlab_url','gitlab_project_id','dynatrace_environment_url','telegram_chat_id'];
+  const ALL = [...SECRET, ...PLAIN];
+  async function load(){
+    const r = await fetch('/settings');
+    if(r.status===401){ location.href='/login'; return; }
+    const d = await r.json();
+    PLAIN.forEach(f => { document.getElementById(f).value = d[f] || ''; });
+    SECRET.forEach(f => {
+      const h = document.getElementById('hint_'+f);
+      h.textContent = d[f] ? ('Stored: ' + d[f] + ' — leave blank to keep') : 'Not set';
+    });
+  }
+  async function save(){
+    const msg = document.getElementById('msg'); msg.className='msg'; msg.textContent='Saving…';
+    const body = {};
+    ALL.forEach(f => { body[f] = document.getElementById(f).value; });
+    try {
+      const r = await fetch('/settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      if(r.status===401){ location.href='/login'; return; }
+      if(!r.ok){ const e = await r.json().catch(()=>({})); msg.className='msg err'; msg.textContent = e.detail || 'Save failed'; return; }
+      msg.className='msg ok'; msg.textContent='Saved ✓';
+      SECRET.forEach(f => document.getElementById(f).value='');
+      load();
+    } catch { msg.className='msg err'; msg.textContent='Network error'; }
+  }
+  async function signOut(){ await fetch('/auth/logout',{method:'POST'}); location.href='/login'; }
+  load();
+</script>
+</body></html>

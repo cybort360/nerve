@@ -521,6 +521,8 @@ body {
 .demo-link:hover { border-color: rgba(157,139,255,.75); background: rgba(157,139,255,.08); }
 .live-link { color: #46d39a; border-color: rgba(70,211,154,.42); }
 .live-link:hover { border-color: rgba(70,211,154,.75); background: rgba(70,211,154,.08); }
+.settings-link { text-decoration: none; display: inline-flex; align-items: center; color: #3fe0c5; border-color: rgba(63,224,197,.42); }
+.settings-link:hover { border-color: rgba(63,224,197,.75); background: rgba(63,224,197,.08); }
 
 /* ---- research result modal (live dashboard) ---- */
 .result-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(3,6,7,.72);backdrop-filter:blur(6px);animation:resultIn .25s ease;}
@@ -2629,6 +2631,7 @@ function App() {
             title="Open the scripted demo — always plays, no backend needed (great for presenting)">
             ▶ Demo
           </a>
+          <a className="btn settings-link" href="/account" title="Settings">⚙</a>
           <button className="icon-btn" data-on={t.sound} title={t.sound ? 'Mute' : 'Sound on'} onClick={() => setTweak('sound', !t.sound)}>
             <CtrlIcon name={t.sound ? 'sound' : 'muted'} />
           </button>

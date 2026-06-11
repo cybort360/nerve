@@ -14,6 +14,7 @@ _INDEX_HTML = _TEMPLATES / "index.html"
 _LIVE_HTML = _TEMPLATES / "live.html"
 _LIVE_CLASSIC_HTML = _TEMPLATES / "live-classic.html"
 _LOGIN_HTML = _TEMPLATES / "login.html"
+_ACCOUNT_HTML = _TEMPLATES / "account.html"
 
 
 @router.get("/login", include_in_schema=False)
@@ -48,3 +49,9 @@ async def dashboard_showcase() -> FileResponse:
 async def dashboard_live_classic() -> FileResponse:
     """Serve the original vanilla backend-wired dashboard (fallback)."""
     return FileResponse(_LIVE_CLASSIC_HTML)
+
+
+@router.get("/account", include_in_schema=False)
+async def dashboard_account() -> FileResponse:
+    """Serve the per-user settings page (login required)."""
+    return FileResponse(_ACCOUNT_HTML)
