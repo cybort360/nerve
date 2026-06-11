@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 from typing import Awaitable, Callable
 
+import structlog
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
@@ -28,26 +29,17 @@ from exceptions import PlanningFailedError
 from state.models import AgentRole, Task
 
 GenerateFn = Callable[[str], Awaitable[str]]
+# Async planner: (goal, context) -> list[TaskDefinition]. Backed by the deployed
+# or in-process ADK agent; swapped for a fake in tests.
+DecomposeFn = Callable[[str, dict], Awaitable[list["TaskDefinition"]]]
 
-MIN_TASKS = 2
-VALID_ROLES = ("planner", "execution", "risk", "auditor")
-
-_PROMPT_TEMPLATE = (
-    "You are nerve-planner, decomposing an operational goal into executable tasks.\n"
-    "Respond with ONLY a JSON array. Each element is an object with keys: "
-    "'description' (string), 'agent_role' (one of {roles}), 'depends_on' "
-    "(array of zero-based indices of earlier tasks), 'tool', and 'tool_args'.\n"
-    "The ONLY available tool is 'web_search' with tool_args {{\"query\": <string>}}. "
-    "EVERY task you emit MUST be an executable web_search task: set agent_role to "
-    "'execution', tool to 'web_search', and a focused search query in "
-    "tool_args.query.\n"
-    "Do NOT create analysis, consolidation, comparison, ranking, or summary tasks "
-    "and do NOT emit tasks without a tool — NERVE automatically synthesizes a final "
-    "ranked recommendation from the search results after the searches complete. "
-    "Decompose the goal into {min_tasks}+ distinct, non-overlapping web searches "
-    "(make them parallel with empty depends_on unless one search genuinely needs "
-    "another's result).\n\nGOAL: {goal}\nCONTEXT: {context}\n"
+from orchestrator.planning_contract import (  # noqa: E402 — after type aliases
+    MIN_TASKS,
+    VALID_ROLES,
+    build_prompt,
 )
+
+log = structlog.get_logger()
 
 
 class TaskDefinition(BaseModel):
@@ -67,19 +59,39 @@ class MissionPlanner:
         self,
         generate: GenerateFn | None = None,
         *,
+        decompose_fn: DecomposeFn | None = None,
         max_attempts: int = 3,
         backoff_min: float = 2.0,
         backoff_max: float = 15.0,
     ) -> None:
         """Initialize the planner.
 
+        Planning prefers the Google Cloud Agent Builder (ADK) ``nerve-planner``
+        agent — deployed to Vertex AI Agent Engine when ``agent_builder_agent_id``
+        is configured, otherwise run in-process via the ADK runner. If the agent
+        is unavailable (no credentials, deploy hiccup, quota), planning falls back
+        to direct Gemini so a mission never stalls on the managed layer.
+
         Args:
-            generate: Async text-generation function; defaults to direct Gemini.
+            generate: Async text-generation function for the direct-Gemini
+                fallback; defaults to Vertex AI Gemini. Injecting this also
+                disables the ADK path (used by tests for deterministic output).
+            decompose_fn: Async ``(goal, context) -> list[dict]`` planner backed
+                by the ADK agent; defaults to the deployed/in-process agent.
+                Injecting this overrides the default ADK runner (used by tests).
             max_attempts: Gemini retry attempts (ARCHITECTURE.md retry policy).
             backoff_min: Minimum exponential backoff seconds.
             backoff_max: Maximum exponential backoff seconds.
         """
         self._generate: GenerateFn = generate or self._default_generate
+        self._decompose_fn = decompose_fn
+        # The ADK agent is the primary planner unless a caller injected a direct
+        # generator (tests) or Agent Builder is disabled in config.
+        self._use_adk = (
+            decompose_fn is None
+            and generate is None
+            and settings.agent_builder_enabled
+        )
         self._max_attempts = max_attempts
         self._backoff_min = backoff_min
         self._backoff_max = backoff_max
@@ -88,6 +100,8 @@ class MissionPlanner:
         """Decompose a goal into structured task definitions.
 
         This is the function-tool surface exposed by ``POST /internal/decompose``.
+        Tries the Agent Builder (ADK) agent first, then falls back to direct
+        Gemini if the agent path is unavailable or returns nothing usable.
 
         Args:
             goal: Raw goal text.
@@ -97,13 +111,51 @@ class MissionPlanner:
             List of :class:`TaskDefinition`.
 
         Raises:
-            PlanningFailedError: On generation, parse, or validation failure.
+            PlanningFailedError: If both the ADK agent and direct Gemini fail.
         """
-        prompt = _PROMPT_TEMPLATE.format(
-            roles=", ".join(VALID_ROLES), min_tasks=MIN_TASKS, goal=goal, context=context
-        )
+        definitions = await self._decompose_via_agent(goal, context)
+        if definitions:
+            return definitions
+        prompt = build_prompt(goal, context)
         raw = await self._generate_with_retry(prompt)
         return self._parse(raw)
+
+    async def _decompose_via_agent(
+        self, goal: str, context: dict
+    ) -> list[TaskDefinition] | None:
+        """Run the ADK agent planner, returning ``None`` to signal fallback.
+
+        Never raises: any failure (missing credentials, agent error, invalid
+        output) is logged and turned into ``None`` so ``decompose`` falls back
+        to direct Gemini.
+
+        Args:
+            goal: Raw goal text.
+            context: Mission context.
+
+        Returns:
+            Validated task definitions, or ``None`` if the agent is unavailable.
+        """
+        fn = self._decompose_fn
+        if fn is None:
+            if not self._use_adk:
+                return None
+            try:
+                from orchestrator.planner_agent_def import decompose_via_agent
+            except Exception as exc:  # noqa: BLE001 — ADK optional at runtime
+                log.warning("adk_import_failed_falling_back", error=str(exc))
+                return None
+            fn = decompose_via_agent
+        try:
+            raw = await fn(goal, context)
+            definitions = [TaskDefinition.model_validate(item) for item in raw]
+            if not definitions:
+                return None
+            log.info("planned_via_agent_builder", task_count=len(definitions))
+            return definitions
+        except Exception as exc:  # noqa: BLE001 — translate any agent failure
+            log.warning("agent_builder_planner_unavailable", error=str(exc))
+            return None
 
     async def plan(self, mission_id: str, goal: str, context: dict) -> list[Task]:
         """Decompose a goal and build insert-ready Task models for a mission.

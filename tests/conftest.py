@@ -39,6 +39,9 @@ os.environ.setdefault("GITLAB_PROJECT_ID", "123")
 # need a flag on opt in explicitly via monkeypatch (see the `enabled` fixtures).
 os.environ["FAILURE_ENGINE_ENABLED"] = "false"
 os.environ["DEMO_MODE"] = "false"
+# Keep planning hermetic: the default planner must not reach out to the ADK /
+# Agent Engine layer (no creds in CI). Tests of the ADK path inject decompose_fn.
+os.environ["AGENT_BUILDER_ENABLED"] = "false"
 os.environ["JWT_SECRET"] = "test-secret-key-deterministic-0123456789abcdef"
 os.environ["SETTINGS_ENCRYPTION_KEY"] = base64.urlsafe_b64encode(b"0" * 32).decode()
 

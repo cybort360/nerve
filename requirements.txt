@@ -13,7 +13,11 @@ pydantic>=2.6,<3.0
 pydantic-settings>=2.2,<3.0
 
 # Agent reasoning (Gemini via Vertex AI)
-google-cloud-aiplatform>=1.50,<2.0
+google-cloud-aiplatform[agent_engines]>=1.155,<2.0
+
+# Google Cloud Agent Builder — the nerve-planner ADK agent (deployed to Vertex AI
+# Agent Engine, with an in-process runner fallback). See orchestrator/planner_agent_def.py
+google-adk>=2.0,<3.0
 
 # Structured logging
 structlog>=24.1,<25.0

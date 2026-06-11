@@ -53,6 +53,22 @@ class Settings(BaseSettings):
     )
     memory_bank_id: str = Field(default="", description="Vertex AI Memory Bank resource id.")
 
+    # --- Google Cloud Agent Builder (ADK planner) ---
+    agent_builder_agent_id: str = Field(
+        default="",
+        description="Vertex AI Agent Engine resource name for the deployed nerve-planner "
+        "agent. When set, planning runs through the deployed Agent Builder agent; "
+        "unset falls back to the in-process ADK runner, then direct Gemini.",
+    )
+    agent_builder_location: str = Field(
+        default="us-central1", description="Region of the deployed Agent Builder agent."
+    )
+    agent_builder_enabled: bool = Field(
+        default=True,
+        description="Route planning through the ADK agent (deployed or in-process). "
+        "When false, the planner uses direct Gemini calls only.",
+    )
+
     # --- MongoDB ---
     mongodb_uri: str = Field(description="MongoDB Atlas connection string.")
     mongodb_database: str = Field(default="nerve", description="Database name.")
