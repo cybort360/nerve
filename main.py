@@ -34,7 +34,8 @@ from orchestrator.planner import MissionPlanner, TaskDefinition
 from auth.dependencies import reject_unauthenticated_ws
 from auth.middleware import AuthMiddleware
 from auth.tokens import COOKIE_NAME, decode_token
-from routes import actions, auth, dashboard, demo, failure, missions, settings, webhooks
+from routes import actions, auth, dashboard, demo, failure, missions, webhooks
+from routes import settings as settings_routes  # aliased: avoid shadowing config.settings
 from state import database as db
 from state.database import ensure_indexes
 from websocket_manager import connection_manager
@@ -291,6 +292,6 @@ app.include_router(missions.router)
 app.include_router(actions.router)
 app.include_router(failure.router)
 app.include_router(demo.router)
-app.include_router(settings.router)
+app.include_router(settings_routes.router)
 app.include_router(webhooks.router)
 app.include_router(dashboard.router)
