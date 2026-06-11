@@ -109,3 +109,30 @@ class RejectRequest(BaseModel):
 
     approved_by: str = Field(min_length=1)
     reason: str = Field(min_length=1)
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Body for PUT /settings.
+
+    Omitted fields are left unchanged; an empty secret keeps the stored one.
+    """
+
+    tavily_api_key: str | None = None
+    gitlab_url: str | None = None
+    gitlab_token: str | None = None
+    gitlab_project_id: str | None = None
+    dynatrace_environment_url: str | None = None
+    dynatrace_api_token: str | None = None
+    dynatrace_webhook_secret: str | None = None
+
+
+class SettingsResponse(BaseModel):
+    """Current settings; secret fields are masked (never the raw token)."""
+
+    tavily_api_key: str = ""
+    gitlab_url: str = ""
+    gitlab_token: str = ""
+    gitlab_project_id: str = ""
+    dynatrace_environment_url: str = ""
+    dynatrace_api_token: str = ""
+    dynatrace_webhook_secret: str = ""
