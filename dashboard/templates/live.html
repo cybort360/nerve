@@ -549,6 +549,65 @@ body {
 .result-actions .ac-btn.approve{background:var(--nerve);border-color:var(--nerve);color:#04211c;font-weight:600;}
 .result-actions .ac-btn.approve:hover{box-shadow:0 0 22px -4px var(--nerve);}
 
+/* ============================================================
+   Responsive — make the 3-column shell work on every screen
+   ============================================================ */
+
+/* small laptops / large tablets: tighten the side rails */
+@media (max-width: 1080px) {
+  .body { grid-template-columns: 236px 1fr 312px; }
+  .hdr { gap: 16px; padding: 0 16px; }
+  .hdr-status { gap: 14px; }
+}
+
+/* tablet portrait & phones: stack into one scrollable column */
+@media (max-width: 880px) {
+  html, body { overflow-x: hidden; overflow-y: auto; height: auto; min-height: 100%; }
+  #root { height: auto; min-height: 100%; }
+  .app { height: auto; min-height: 100%; }
+
+  /* header wraps instead of overflowing */
+  .hdr { height: auto; min-height: 54px; flex-wrap: wrap; gap: 10px 14px; padding: 10px 14px; }
+  .hdr-spacer { display: none; }
+  .switcher { order: 3; }
+  .hdr-status { order: 4; gap: 22px; }
+  .ctrls { order: 5; flex-wrap: wrap; margin-left: auto; }
+
+  /* the three columns become stacked rows: mission graph, vitals, feed */
+  .body { display: flex; flex-direction: column; height: auto; }
+  .col { min-height: 0; }
+  .col.center { order: 1; }
+  .col.left   { order: 2; border-right: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .col.right  { order: 3; border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+
+  /* graph needs an explicit min-height once it leaves the fixed-height grid;
+     scale the node canvas so edge nodes never clip on a narrow viewport */
+  .graph-head { padding: 16px 16px 0; }
+  .graph-region { min-height: 56vh; overflow: visible; }
+  .graph-stage { transform: scale(0.8); transform-origin: center; }
+
+  /* let the feed grow with the page instead of scrolling inside a dead height */
+  .feed { overflow: visible; }
+}
+
+/* phones */
+@media (max-width: 560px) {
+  .wordmark .name { font-size: 16px; letter-spacing: 0.22em; }
+  .switcher button { padding: 6px 10px; font-size: 10px; gap: 6px; }
+  .statchip { min-width: 48px; }
+  .btn { height: 32px; padding: 0 11px; }
+  .panel { padding: 16px 14px; }
+
+  .graph-head { flex-direction: column; gap: 10px; }
+  .goal-block { max-width: 100%; }
+  .goal-block .goal { font-size: 16px; }
+  .graph-region { min-height: 50vh; }
+  .graph-stage { transform: scale(0.64); transform-origin: center top; }
+
+  /* keep overlays inside the viewport */
+  .result-card, .phone, .launcher, .fleet-panel, .appcard { max-width: 92vw; }
+}
+
 </style>
 </head>
 <body>
