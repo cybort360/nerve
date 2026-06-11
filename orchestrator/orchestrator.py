@@ -35,6 +35,7 @@ EVENT_TASK_STARTED = "TASK_STARTED"
 EVENT_TASK_RETRYING = "TASK_RETRYING"
 EVENT_REPLAN_TRIGGERED = "REPLAN_TRIGGERED"
 EVENT_SNAPSHOT_TAKEN = "SNAPSHOT_TAKEN"
+EVENT_INCIDENT_FAILED = "INCIDENT_FAILED"
 
 TERMINAL_STATUSES = ("resolved", "failed")
 MAX_REPLANS = 3
@@ -55,6 +56,7 @@ class NERVEOrchestrator:
         self._active: dict[str, asyncio.Task] = {}
         self._cycles: dict[str, int] = {}
         self._replans: dict[str, int] = {}
+        self._incident_workflows: dict[str, tuple] = {}
         self._log = structlog.get_logger().bind(component="orchestrator")
         # Agent construction seams — overridable for testing.
         self.risk_agent_factory: Callable[[str], RiskAgent] = lambda mid: RiskAgent(mid)
@@ -108,6 +110,86 @@ class NERVEOrchestrator:
         """Stop every active mission loop (called on app shutdown)."""
         for mission_id in list(self._active):
             await self.stop_mission(mission_id)
+        for mission_id, (workflow, dynatrace, gitlab, task) in list(self._incident_workflows.items()):
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+            with suppress(Exception):
+                await dynatrace.disconnect()
+                await gitlab.disconnect()
+            self._incident_workflows.pop(mission_id, None)
+
+    # ----------------------------------------------------------------- #
+    # Incident workflow
+    # ----------------------------------------------------------------- #
+
+    async def run_incident(self, mission_id: str, problem_id: str, owner_id: str | None) -> None:
+        """Run the structured incident workflow on the owner's connected Dynatrace+GitLab.
+
+        Marks the mission failed (no generic fallback) when the owner has not
+        configured Dynatrace. Never raises — a webhook must not crash.
+
+        Args:
+            mission_id: Mission to run the workflow for.
+            problem_id: Dynatrace problem id that triggered the mission.
+            owner_id: User id of the mission owner (for effective config lookup).
+        """
+        log = self._log.bind(mission_id=mission_id, problem_id=problem_id)
+        eff = await resolve_effective_settings(owner_id)
+        if not (eff.dynatrace_environment_url and eff.dynatrace_api_token):
+            await self._fail_incident(mission_id, "dynatrace_not_configured",
+                                      "Connect a Dynatrace environment in settings to run incident autopilot.")
+            return
+        try:
+            dynatrace = DynatraceClient(
+                mission_id=mission_id, failure_engine=self._failure_engine,
+                server_url=f"{eff.dynatrace_environment_url.rstrip('/')}/mcp", token=eff.dynatrace_api_token,
+            )
+            gitlab = GitLabClient(
+                mission_id=mission_id, failure_engine=self._failure_engine,
+                server_url=(f"{eff.gitlab_url.rstrip('/')}/api/v4" if eff.gitlab_url else None),
+                token=eff.gitlab_token,
+            )
+            await dynatrace.connect()
+            await gitlab.connect()
+            from modules.incident_autopilot.workflow import IncidentAutopilotWorkflow  # lazy: avoids circular import
+            workflow = IncidentAutopilotWorkflow(dynatrace, gitlab, project_id=eff.gitlab_project_id)
+            task = asyncio.create_task(
+                self._run_incident_workflow(workflow, mission_id, problem_id), name=f"incident-{mission_id}"
+            )
+            self._incident_workflows[mission_id] = (workflow, dynatrace, gitlab, task)
+            log.info("incident_workflow_launched")
+        except Exception as exc:  # noqa: BLE001 — a webhook must never crash
+            log.error("incident_launch_failed", error=str(exc), exc_info=True)
+            await self._fail_incident(mission_id, "launch_error", str(exc))
+
+    async def _run_incident_workflow(
+        self, workflow: Any, mission_id: str, problem_id: str
+    ) -> None:
+        """Drive the workflow; mark the mission failed if it raises.
+
+        Args:
+            workflow: IncidentAutopilotWorkflow instance to drive.
+            mission_id: Owning mission identifier.
+            problem_id: Dynatrace problem id passed to the workflow.
+        """
+        try:
+            await workflow.run(problem_id, mission_id)
+        except Exception as exc:  # noqa: BLE001 — never let the incident task crash silently
+            self._log.error("incident_workflow_crashed", mission_id=mission_id, error=str(exc), exc_info=True)
+            await self._fail_incident(mission_id, "workflow_error", str(exc))
+
+    async def _fail_incident(self, mission_id: str, reason: str, message: str) -> None:
+        """Mark an incident mission failed and emit a reason event.
+
+        Args:
+            mission_id: Mission to mark as failed.
+            reason: Short machine-readable failure reason key.
+            message: Human-readable explanation.
+        """
+        await db.update_mission_status(mission_id, "failed")
+        await db.emit_event(mission_id, EVENT_INCIDENT_FAILED, {"reason": reason, "message": message}, SOURCE_ORCH)
+        self._log.warning("incident_failed", mission_id=mission_id, reason=reason)
 
     # ----------------------------------------------------------------- #
     # The loop
