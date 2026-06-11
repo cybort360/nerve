@@ -31,6 +31,7 @@ from tenacity import (
 )
 
 from config import settings
+from crypto import decrypt_secret, encrypt_secret
 from exceptions import (
     AuthError,
     DocumentNotFoundError,
@@ -55,6 +56,7 @@ from state.models import (
     Task,
     TaskStatus,
     User,
+    UserSettings,
 )
 
 log = structlog.get_logger()
@@ -73,6 +75,10 @@ COLLECTION_SNAPSHOTS = "snapshots"
 COLLECTION_BELIEFS = "beliefs"
 COLLECTION_METRICS = "metrics"
 COLLECTION_USERS = "users"
+COLLECTION_USER_SETTINGS = "user_settings"
+
+# Fields whose values are encrypted at rest; all other UserSettings fields are plaintext.
+_SECRET_SETTING_FIELDS = ("tavily_api_key", "gitlab_token", "dynatrace_api_token", "dynatrace_webhook_secret")
 DEFAULT_RECENT_EVENTS_LIMIT = 50
 DEFAULT_METRIC_SERIES_LIMIT = 48
 DEFAULT_LIST_MISSIONS_LIMIT = 12
@@ -138,6 +144,11 @@ def get_users_collection() -> AsyncIOMotorCollection:
     return get_database()[COLLECTION_USERS]
 
 
+def get_user_settings_collection() -> AsyncIOMotorCollection:
+    """Return the ``user_settings`` collection."""
+    return get_database()[COLLECTION_USER_SETTINGS]
+
+
 async def ensure_indexes() -> None:
     """Create the MongoDB indexes the state layer relies on.
 
@@ -191,6 +202,9 @@ async def ensure_indexes() -> None:
     users = get_users_collection()
     await users.create_index("user_id", unique=True, background=True)
     await users.create_index("email", unique=True, background=True)
+
+    user_settings = get_user_settings_collection()
+    await user_settings.create_index("user_id", unique=True, background=True)
 
     log.info("indexes_ensured")
 
@@ -711,6 +725,55 @@ async def get_user(user_id: str) -> User | None:
         lambda: get_users_collection().find_one({"user_id": user_id}), error_ctx=ctx
     )
     return _to_model(User, doc, error_ctx=ctx) if doc else None
+
+
+# --------------------------------------------------------------------------- #
+# UserSettings (per-user integration config)
+# --------------------------------------------------------------------------- #
+async def get_user_settings(user_id: str) -> UserSettings | None:
+    """Return a user's settings with secrets DECRYPTED, or None if unset.
+
+    Args:
+        user_id: Owner's user identifier.
+
+    Returns:
+        The :class:`UserSettings` with plaintext secrets, or ``None`` if not stored.
+    """
+    ctx = {"user_id": user_id, "op": "get_user_settings"}
+    doc = await _execute_read(
+        lambda: get_user_settings_collection().find_one({"user_id": user_id}),
+        error_ctx=ctx,
+    )
+    if not doc:
+        return None
+    for f in _SECRET_SETTING_FIELDS:
+        if doc.get(f):
+            doc[f] = decrypt_secret(doc[f])
+    return _to_model(UserSettings, doc, error_ctx=ctx)
+
+
+async def upsert_user_settings(user_id: str, values: dict) -> UserSettings:
+    """Create/replace a user's settings; secret fields are encrypted at rest.
+
+    Args:
+        user_id: Owner.
+        values: Plaintext field values to set (subset of UserSettings fields).
+
+    Returns:
+        The upserted :class:`UserSettings` (plaintext in memory).
+    """
+    model = UserSettings(user_id=user_id, **{k: v for k, v in values.items() if k != "user_id"})
+    stored = model.model_dump()
+    for f in _SECRET_SETTING_FIELDS:
+        if stored.get(f):
+            stored[f] = encrypt_secret(stored[f])
+    ctx = {"user_id": user_id, "op": "upsert_user_settings"}
+    await _execute_write(
+        lambda: get_user_settings_collection().replace_one({"user_id": user_id}, stored, upsert=True),
+        error_ctx=ctx,
+    )
+    log.info("user_settings_saved", user_id=user_id)
+    return model
 
 
 # --------------------------------------------------------------------------- #

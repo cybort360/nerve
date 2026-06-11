@@ -120,6 +120,10 @@ class Settings(BaseSettings):
     cookie_secure: bool = Field(default=True, description="Set the session cookie Secure flag. Set false for local http (curl) testing.")
     incidents_owner_email: str = Field(default="", description="Email of the user who owns Dynatrace-webhook incidents (no logged-in user). Empty => unowned.")
 
+    # --- Per-user settings encryption ---
+    settings_encryption_key: str = Field(default="", description="Fernet key (urlsafe base64) for encrypting per-user integration tokens at rest. Generate: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+
+
 
 settings = Settings()
 """Module-level singleton. Import this everywhere instead of re-instantiating."""

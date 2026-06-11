@@ -131,6 +131,20 @@ class User(_BaseDoc):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class UserSettings(_BaseDoc):
+    """A user's integration config (plaintext in memory; secrets encrypted at rest)."""
+
+    user_id: str
+    tavily_api_key: str = ""
+    gitlab_url: str = ""
+    gitlab_token: str = ""
+    gitlab_project_id: str = ""
+    dynatrace_environment_url: str = ""
+    dynatrace_api_token: str = ""
+    dynatrace_webhook_secret: str = ""
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Snapshot(_BaseDoc):
     """A point-in-time summary of mission state at the end of a loop cycle."""
 

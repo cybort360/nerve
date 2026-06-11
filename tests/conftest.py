@@ -7,6 +7,7 @@ provides an in-memory MongoDB via ``mongomock-motor`` wired into the state layer
 
 from __future__ import annotations
 
+import base64
 import os
 
 # Load a real .env FIRST so a developer's real credentials populate os.environ.
@@ -39,6 +40,7 @@ os.environ.setdefault("GITLAB_PROJECT_ID", "123")
 os.environ["FAILURE_ENGINE_ENABLED"] = "false"
 os.environ["DEMO_MODE"] = "false"
 os.environ["JWT_SECRET"] = "test-secret-key-deterministic-0123456789abcdef"
+os.environ["SETTINGS_ENCRYPTION_KEY"] = base64.urlsafe_b64encode(b"0" * 32).decode()
 
 import pytest  # noqa: E402
 from mongomock_motor import AsyncMongoMockClient  # noqa: E402

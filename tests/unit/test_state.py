@@ -173,6 +173,24 @@ async def test_get_mission_state_none_when_absent(mock_db):
     assert await db.get_mission_state("missing") is None
 
 
+# --------------------------------------------------------------------------- #
+# UserSettings (per-user integration config with encrypted secrets)
+# --------------------------------------------------------------------------- #
+async def test_user_settings_roundtrip_and_secret_encrypted(mock_db):
+    await db.upsert_user_settings("u1", {"gitlab_token": "glpat-abc", "gitlab_url": "https://gl.example", "tavily_api_key": "tvly-x"})
+    got = await db.get_user_settings("u1")
+    assert got.gitlab_token == "glpat-abc"          # decrypted on read
+    assert got.gitlab_url == "https://gl.example"
+    # raw stored doc must NOT contain the plaintext secret
+    raw = await db.get_user_settings_collection().find_one({"user_id": "u1"})
+    assert raw["gitlab_token"] != "glpat-abc"
+    assert raw["gitlab_url"] == "https://gl.example"  # non-secret stored plaintext
+
+
+async def test_get_user_settings_missing(mock_db):
+    assert await db.get_user_settings("nobody") is None
+
+
 async def test_create_snapshot_summarizes_state(mock_db):
     mission = await db.create_mission("g", "INCIDENT_RESPONSE")
     await db.create_task(mission.mission_id, "planner", "a")
