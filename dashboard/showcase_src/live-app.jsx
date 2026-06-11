@@ -149,18 +149,23 @@ function App() {
     if (data.mission.goal) setGoalText(data.mission.goal);
     const resolved = L.isTerminal(st);
     const tasks = data.tasks || [];
-    if (tasks.length) {
-      setGraph(L.buildGraph(tasks));
-      const ns = {}; tasks.forEach(tk => { ns[tk.task_id] = L.nodeStateFor(tk.status); }); setNodeStates(ns);
-      const inProg = tasks.find(tk => tk.status === 'in_progress' || tk.status === 'retrying');
-      setActiveNode(inProg ? inProg.task_id : null);
+    let g;
+    if (data.mission.mission_type === 'INCIDENT_RESPONSE') {
+      if (tasks.length) {
+        const bg = L.buildGraph(tasks);
+        const ns = {}; tasks.forEach(tk => { ns[tk.task_id] = L.nodeStateFor(tk.status); });
+        g = { nodes: bg.nodes, edges: bg.edges, nodeStates: ns };
+      } else {
+        /* scripted incident demo emits milestone events but no task rows */
+        g = L.buildMilestoneGraph(seenTypes.current, resolved);
+      }
     } else {
-      /* no task rows (e.g. the scripted incident demo) → light a milestone graph from real events */
-      const mg = L.buildMilestoneGraph(seenTypes.current, resolved);
-      setGraph({ nodes: mg.nodes, edges: mg.edges }); setNodeStates(mg.nodeStates);
-      const act = mg.nodes.find(n => mg.nodeStates[n.id] === 'active');
-      setActiveNode(act ? act.id : null);
+      /* research/general: fan plan → searches → synthesize so traces connect */
+      g = L.buildResearchGraph(tasks, resolved);
     }
+    setGraph({ nodes: g.nodes, edges: g.edges }); setNodeStates(g.nodeStates);
+    const active = g.nodes.find(n => g.nodeStates[n.id] === 'active');
+    setActiveNode(active ? active.id : null);
     if (typeof data.risk === 'number') setTargetRisk(Math.round(data.risk * 100));
     setMemory(L.beliefsToFacts(data.beliefs));
     const sp = L.seriesToSparkline(data.metric_series);

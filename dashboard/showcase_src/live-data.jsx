@@ -181,6 +181,32 @@ function buildMilestoneGraph(seenTypes, resolved) {
   return { nodes, edges: INCIDENT_MS_EDGES, nodeStates: states };
 }
 
+/* Research graph — the planner emits flat, dependency-free web_search tasks, so a
+   raw DAG would stack them in one column with no edges. Instead fan out from a
+   "decompose" node to each search and converge into a "synthesize" node, so the
+   traces actually connect and the flow reads plan → search → answer. */
+function buildResearchGraph(tasks, resolved) {
+  const searches = tasks || [];
+  const n = searches.length;
+  const nodes = [{ id: '__plan', x: 8, y: 50, agent: 'planner', icon: 'route', label: 'Decompose goal' }];
+  const edges = [];
+  const states = { __plan: n ? 'done' : 'active' };
+  searches.forEach((t, i) => {
+    const y = n === 1 ? 50 : 16 + (i / (n - 1)) * 68;
+    nodes.push({
+      id: t.task_id, x: 50, y, agent: t.agent_role || 'execution',
+      icon: iconForTask(t), label: shortLabel(t.description), _status: t.status,
+    });
+    states[t.task_id] = nodeStateFor(t.status);
+    edges.push(['__plan', t.task_id]);
+    edges.push([t.task_id, '__synth']);
+  });
+  nodes.push({ id: '__synth', x: 92, y: 50, agent: 'planner', icon: 'target', label: 'Synthesize answer' });
+  const allDone = n > 0 && searches.every(t => t.status === 'completed');
+  states.__synth = resolved ? 'done' : (allDone ? 'active' : 'pending');
+  return { nodes, edges, nodeStates: states };
+}
+
 const KIND_BY_EVENT = {
   TASK_FAILED: 'alert', FAILURE_INJECTED: 'alert',
   RISK_SCORE_UPDATED: 'risk', REPLAN_TRIGGERED: 'risk', FAILURE_CLEARED: 'risk',
@@ -350,7 +376,7 @@ function addKnown(id, type) {
 
 window.NERVE = { AGENTS, ORCH, AGENT_COLOR, MISSIONS, FLEET_GHOSTS };
 window.NERVE_LIVE = {
-  mapPhase, isTerminal, nodeStateFor, buildGraph, buildMilestoneGraph,
+  mapPhase, isTerminal, nodeStateFor, buildGraph, buildMilestoneGraph, buildResearchGraph,
   translateEvent, actionToApproval, beliefsToFacts, seriesToSparkline,
   Api, getKnown, addKnown, FEED_NOISE, mdLite,
 };
