@@ -124,6 +124,7 @@ class SettingsUpdateRequest(BaseModel):
     dynatrace_environment_url: str | None = None
     dynatrace_api_token: str | None = None
     dynatrace_webhook_secret: str | None = None
+    telegram_chat_id: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -136,3 +137,4 @@ class SettingsResponse(BaseModel):
     dynatrace_environment_url: str = ""
     dynatrace_api_token: str = ""
     dynatrace_webhook_secret: str = ""
+    telegram_chat_id: str = ""

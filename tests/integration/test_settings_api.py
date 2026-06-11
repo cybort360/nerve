@@ -44,3 +44,12 @@ async def test_get_settings_is_owner_scoped(mock_db):
     await db.upsert_user_settings(alice.user_id, {"gitlab_token": "alice-secret"})
     out = await settings_routes.get_settings(bob)  # bob has no settings
     assert out.gitlab_token == ""                  # bob sees only his own (empty)
+
+
+async def test_telegram_chat_id_roundtrips_unmasked(mock_db):
+    user = await db.create_user("tg@x.io", "h")
+    await settings_routes.put_settings(SettingsUpdateRequest(telegram_chat_id="123456789"), user)
+    out = await settings_routes.get_settings(user)
+    assert out.telegram_chat_id == "123456789"   # NOT masked
+    stored = await db.get_user_settings_collection().find_one({"user_id": user.user_id})
+    assert stored["telegram_chat_id"] == "123456789"  # stored plaintext (not a secret)

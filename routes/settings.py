@@ -16,6 +16,7 @@ _SECRET_FIELDS = ("tavily_api_key", "gitlab_token", "dynatrace_api_token", "dyna
 _ALL_FIELDS = (
     "tavily_api_key", "gitlab_url", "gitlab_token", "gitlab_project_id",
     "dynatrace_environment_url", "dynatrace_api_token", "dynatrace_webhook_secret",
+    "telegram_chat_id",
 )
 
 

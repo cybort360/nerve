@@ -22,3 +22,9 @@ async def test_resolve_none_user_is_pure_global(mock_db):
     eff = await resolve_effective_settings(None)
     from config import settings as g
     assert eff.gitlab_token == g.gitlab_token
+
+
+async def test_resolve_includes_telegram_chat_id(mock_db):
+    await db.upsert_user_settings("u1", {"telegram_chat_id": "987654"})
+    eff = await resolve_effective_settings("u1")
+    assert eff.telegram_chat_id == "987654"

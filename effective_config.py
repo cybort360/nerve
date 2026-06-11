@@ -10,6 +10,7 @@ from state import database as db
 _OVERRIDABLE = (
     "tavily_api_key", "gitlab_url", "gitlab_token", "gitlab_project_id",
     "dynatrace_environment_url", "dynatrace_api_token", "dynatrace_webhook_secret",
+    "telegram_chat_id",
 )
 
 
@@ -26,6 +27,7 @@ class EffectiveSettings:
     dynatrace_environment_url: str
     dynatrace_api_token: str
     dynatrace_webhook_secret: str
+    telegram_chat_id: str
 
 
 def _from_global() -> dict:
@@ -40,6 +42,7 @@ def _from_global() -> dict:
         "dynatrace_environment_url": settings.dynatrace_environment_url,
         "dynatrace_api_token": settings.dynatrace_api_token,
         "dynatrace_webhook_secret": settings.dynatrace_webhook_secret,
+        "telegram_chat_id": settings.telegram_chat_id,
     }
 
 
