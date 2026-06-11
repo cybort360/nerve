@@ -315,13 +315,15 @@ async def build_seeded_clients(
 class DemoScenario:
     """Runs the pre-scripted demo incident end-to-end with seeded data."""
 
-    def __init__(self, *, time_scale: float = 1.0) -> None:
+    def __init__(self, *, time_scale: float = 1.0, owner_id: str | None = None) -> None:
         """Initialize the demo driver.
 
         Args:
             time_scale: Multiplier on the timeline (e.g. 0.001 for fast tests).
+            owner_id: User id to set as the mission owner (the clicking user).
         """
         self._time_scale = time_scale
+        self._owner_id = owner_id
         self._clock = 0.0
         self._mission_id: str | None = None
         self._workflow: IncidentAutopilotWorkflow | None = None
@@ -383,7 +385,7 @@ class DemoScenario:
 
     async def _seed_mission(self) -> str:
         """Create the seeded mission and move it into the executing state."""
-        mission = await db.create_mission(SEED_GOAL, "INCIDENT_RESPONSE", self._seed_context())
+        mission = await db.create_mission(SEED_GOAL, "INCIDENT_RESPONSE", self._seed_context(), owner_id=self._owner_id)
         await db.emit_event(mission.mission_id, EVENT_DEMO_STARTED, self._seed_context(), SOURCE_FAILURE_ENGINE)
         await db.emit_event(mission.mission_id, "MISSION_CREATED", {"goal": SEED_GOAL}, SOURCE_ORCH)
         await self._set_status(mission.mission_id, "pending", "planning")

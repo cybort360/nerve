@@ -158,8 +158,9 @@ async def test_clear_failure_when_enabled(mock_db, monkeypatch):
 # Demo route
 # --------------------------------------------------------------------------- #
 async def test_demo_start_403_when_disabled(mock_db):
+    user = await db.create_user("demo-disabled@test.io", "h")
     with pytest.raises(HTTPException) as exc:
-        await demo.start_demo(_request())
+        await demo.start_demo(_request(), user=user)
     assert exc.value.status_code == 403
 
 
@@ -167,7 +168,8 @@ async def test_demo_start_schedules_scenario(mock_db, monkeypatch):
     monkeypatch.setattr(settings, "demo_mode", True)
     fake = SimpleNamespace(prepare=AsyncMock(return_value="demo-mission-1"), run=AsyncMock())
     monkeypatch.setattr("failure_engine.demo_scenario.DemoScenario", lambda *a, **k: fake)
-    resp = await demo.start_demo(_request(orchestrator=SimpleNamespace()))
+    user = await db.create_user("demo-clicker@test.io", "h")
+    resp = await demo.start_demo(_request(orchestrator=SimpleNamespace()), user=user)
     await asyncio.sleep(0)  # let the scheduled task run
     assert resp["status"] == "demo_started"
     assert resp["mission_id"] == "demo-mission-1"

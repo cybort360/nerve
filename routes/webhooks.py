@@ -132,7 +132,14 @@ async def _handle_problem_open(app: Any, payload: DynatraceWebhookPayload) -> di
         "source": SOURCE_DYNATRACE_WEBHOOK,
     }
     goal = _GOAL_TEMPLATE.format(title=payload.title or payload.problem_id)
-    mission = await db.create_mission(goal, MISSION_TYPE_INCIDENT, context)
+    owner_id = None
+    if settings.incidents_owner_email:
+        owner = await db.get_user_by_email(settings.incidents_owner_email)
+        if owner is None:
+            log.warning("incidents_owner_not_found", email=settings.incidents_owner_email)
+        else:
+            owner_id = owner.user_id
+    mission = await db.create_mission(goal, MISSION_TYPE_INCIDENT, context, owner_id=owner_id)
     await db.emit_event(
         mission.mission_id, EVENT_MISSION_CREATED, {"goal": goal, "problem_id": payload.problem_id}, SOURCE_ORCHESTRATOR
     )

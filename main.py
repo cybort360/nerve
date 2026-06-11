@@ -33,7 +33,9 @@ from orchestrator.orchestrator import NERVEOrchestrator
 from orchestrator.planner import MissionPlanner, TaskDefinition
 from auth.dependencies import reject_unauthenticated_ws
 from auth.middleware import AuthMiddleware
+from auth.tokens import COOKIE_NAME, decode_token
 from routes import actions, auth, dashboard, demo, failure, missions, webhooks
+from state import database as db
 from state.database import ensure_indexes
 from websocket_manager import connection_manager
 
@@ -230,6 +232,10 @@ async def mission_ws(websocket: WebSocket, mission_id: str) -> None:
         mission_id: Mission whose events the client wants to receive.
     """
     if await reject_unauthenticated_ws(websocket):  # WS isn't gated by the HTTP middleware
+        return
+    uid = decode_token(websocket.cookies.get(COOKIE_NAME))
+    if uid is None or await db.get_owned_mission(mission_id, uid) is None:
+        await websocket.close(code=4404)  # not your mission (or gone)
         return
     manager = app.state.ws_manager
     await manager.connect(mission_id, websocket)
