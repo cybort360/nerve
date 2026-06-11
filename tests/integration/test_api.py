@@ -30,9 +30,10 @@ def _request(orchestrator=None, failure_engine=None):
 # POST /missions
 # --------------------------------------------------------------------------- #
 async def test_create_mission_starts_loop(mock_db):
+    user = await db.create_user("t@test.io", "h")
     orch = SimpleNamespace(run_mission=AsyncMock())
     body = CreateMissionRequest(goal="resolve checkout spike", mission_type="INCIDENT_RESPONSE")
-    resp = await missions.create_mission(body, _request(orchestrator=orch))
+    resp = await missions.create_mission(body, _request(orchestrator=orch), user)
 
     assert resp.status == "pending"
     stored = await db.get_mission(resp.mission_id)
@@ -46,20 +47,22 @@ async def test_create_mission_starts_loop(mock_db):
 # GET /missions/{id}
 # --------------------------------------------------------------------------- #
 async def test_read_mission_state_404(mock_db):
+    user = await db.create_user("t@test.io", "h")
     with pytest.raises(HTTPException) as exc:
-        await missions.read_mission_state("nope", _request())
+        await missions.read_mission_state("nope", _request(), user)
     assert exc.value.status_code == 404
 
 
 async def test_read_mission_state_aggregates(mock_db):
-    mission = await db.create_mission("g", "INCIDENT_RESPONSE")
+    user = await db.create_user("t@test.io", "h")
+    mission = await db.create_mission("g", "INCIDENT_RESPONSE", owner_id=user.user_id)
     await db.create_task(mission.mission_id, "execution", "get problems")
     await db.emit_event(mission.mission_id, "RISK_SCORE_UPDATED", {"overall": 0.42, "breakdown": {"failed_tasks": 0.0}}, "agent")
     state = await db.get_mission_state(mission.mission_id)
     await db.create_snapshot(state, cycle=1)
     await db.create_action(mission.mission_id, "gitlab_rollback", {"ref": "main"})
 
-    resp = await missions.read_mission_state(mission.mission_id, _request())
+    resp = await missions.read_mission_state(mission.mission_id, _request(), user)
     assert resp.mission.mission_id == mission.mission_id
     assert len(resp.tasks) == 1
     assert resp.latest_snapshot is not None and resp.latest_snapshot.cycle == 1
@@ -69,10 +72,11 @@ async def test_read_mission_state_aggregates(mock_db):
 
 
 async def test_read_events_pagination(mock_db):
-    mission = await db.create_mission("g", "GENERAL")
+    user = await db.create_user("t@test.io", "h")
+    mission = await db.create_mission("g", "GENERAL", owner_id=user.user_id)
     for i in range(5):
         await db.emit_event(mission.mission_id, "TICK", {"i": i}, "orchestrator")
-    page = await missions.read_events(mission.mission_id, limit=2, offset=0)
+    page = await missions.read_events(mission.mission_id, limit=2, offset=0, user=user)
     assert len(page.events) == 2
     assert page.total == 5 and page.limit == 2 and page.offset == 0
 
@@ -81,11 +85,12 @@ async def test_read_events_pagination(mock_db):
 # POST /actions/{id}/approve | reject
 # --------------------------------------------------------------------------- #
 async def test_approve_action(mock_db, monkeypatch):
+    user = await db.create_user("t@test.io", "h")
     monkeypatch.setattr(actions, "_maybe_trigger_execution", AsyncMock())
-    mission = await db.create_mission("g", "INCIDENT_RESPONSE")
+    mission = await db.create_mission("g", "INCIDENT_RESPONSE", owner_id=user.user_id)
     action = await db.create_action(mission.mission_id, "gitlab_rollback", {"ref": "main"})
 
-    updated = await actions.approve_action(action.action_id, ApproveRequest(approved_by="oncall"), _request())
+    updated = await actions.approve_action(action.action_id, ApproveRequest(approved_by="oncall"), _request(), user)
     assert updated.status == "approved" and updated.approved_by == "oncall"
     actions._maybe_trigger_execution.assert_awaited_once()
     events = [e.event_type for e in await db.get_recent_events_for_mission(mission.mission_id)]
@@ -93,26 +98,29 @@ async def test_approve_action(mock_db, monkeypatch):
 
 
 async def test_approve_action_404(mock_db):
+    user = await db.create_user("t@test.io", "h")
     with pytest.raises(HTTPException) as exc:
-        await actions.approve_action("missing", ApproveRequest(approved_by="x"), _request())
+        await actions.approve_action("missing", ApproveRequest(approved_by="x"), _request(), user)
     assert exc.value.status_code == 404
 
 
 async def test_approve_action_409_when_not_pending(mock_db, monkeypatch):
+    user = await db.create_user("t@test.io", "h")
     monkeypatch.setattr(actions, "_maybe_trigger_execution", AsyncMock())
-    mission = await db.create_mission("g", "INCIDENT_RESPONSE")
+    mission = await db.create_mission("g", "INCIDENT_RESPONSE", owner_id=user.user_id)
     action = await db.create_action(mission.mission_id, "gitlab_issue", {})
     await db.update_action_status(action.action_id, "approved")
 
     with pytest.raises(HTTPException) as exc:
-        await actions.approve_action(action.action_id, ApproveRequest(approved_by="x"), _request())
+        await actions.approve_action(action.action_id, ApproveRequest(approved_by="x"), _request(), user)
     assert exc.value.status_code == 409
 
 
 async def test_reject_action(mock_db):
-    mission = await db.create_mission("g", "INCIDENT_RESPONSE")
+    user = await db.create_user("t@test.io", "h")
+    mission = await db.create_mission("g", "INCIDENT_RESPONSE", owner_id=user.user_id)
     action = await db.create_action(mission.mission_id, "gitlab_rollback", {})
-    updated = await actions.reject_action(action.action_id, RejectRequest(approved_by="oncall", reason="not the cause"))
+    updated = await actions.reject_action(action.action_id, RejectRequest(approved_by="oncall", reason="not the cause"), user)
     assert updated.status == "rejected"
     events = [e.event_type for e in await db.get_recent_events_for_mission(mission.mission_id)]
     assert "ACTION_REJECTED" in events

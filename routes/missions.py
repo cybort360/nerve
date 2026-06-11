@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from auth.dependencies import current_user
 from config import settings
 from routes.schemas import (
     CreateMissionRequest,
@@ -15,6 +16,7 @@ from routes.schemas import (
     MissionSummary,
 )
 from state import database as db
+from state.models import User
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/missions", tags=["missions"])
@@ -29,13 +31,16 @@ FEED_NOISE_TYPES = ["MCP_TOOL_CALLED", "MCP_TOOL_RESULT", "RESOLUTION_CHECK"]
 
 
 @router.get("", response_model=MissionListResponse)
-async def list_missions() -> MissionListResponse:
+async def list_missions(user: User = Depends(current_user)) -> MissionListResponse:
     """Return recent missions as compact summaries for the fleet roster.
+
+    Args:
+        user: Authenticated user (injected by dependency).
 
     Returns:
         Up to 12 most-recently-updated missions as :class:`MissionSummary` items.
     """
-    missions = await db.list_recent_missions()
+    missions = await db.list_recent_missions(owner_id=user.user_id)
     summaries = [
         MissionSummary(
             mission_id=m.mission_id,
@@ -51,17 +56,22 @@ async def list_missions() -> MissionListResponse:
 
 
 @router.post("", response_model=CreateMissionResponse, status_code=201)
-async def create_mission(body: CreateMissionRequest, request: Request) -> CreateMissionResponse:
+async def create_mission(
+    body: CreateMissionRequest,
+    request: Request,
+    user: User = Depends(current_user),
+) -> CreateMissionResponse:
     """Create a mission and start its orchestration loop.
 
     Args:
         body: Goal and mission type.
         request: FastAPI request (for the orchestrator on app.state).
+        user: Authenticated user (injected by dependency).
 
     Returns:
         The new mission id and its current status.
     """
-    mission = await db.create_mission(body.goal, body.mission_type)
+    mission = await db.create_mission(body.goal, body.mission_type, owner_id=user.user_id)
     await db.emit_event(
         mission.mission_id,
         EVENT_MISSION_CREATED,
@@ -74,20 +84,27 @@ async def create_mission(body: CreateMissionRequest, request: Request) -> Create
 
 
 @router.get("/{mission_id}", response_model=MissionStateResponse)
-async def read_mission_state(mission_id: str, request: Request) -> MissionStateResponse:
+async def read_mission_state(
+    mission_id: str,
+    request: Request,
+    user: User = Depends(current_user),
+) -> MissionStateResponse:
     """Return the aggregate mission view consumed by the dashboard.
 
     Args:
         mission_id: Mission identifier.
         request: FastAPI request (for the failure engine on app.state).
+        user: Authenticated user (injected by dependency).
 
     Returns:
         Mission, tasks, recent events, latest snapshot, pending actions, active
         failures, and the latest risk score.
 
     Raises:
-        HTTPException: 404 if the mission does not exist.
+        HTTPException: 404 if the mission does not exist or is not owned by the user.
     """
+    if await db.get_owned_mission(mission_id, user.user_id) is None:
+        raise HTTPException(status_code=404, detail="mission not found")
     state = await db.get_mission_state(mission_id)
     if state is None:
         raise HTTPException(status_code=404, detail="mission not found")
@@ -114,6 +131,7 @@ async def read_events(
     mission_id: str,
     limit: int = Query(default=50, ge=1, le=MAX_EVENT_PAGE),
     offset: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
 ) -> EventsPageResponse:
     """Return a chronological, paginated event log for a mission.
 
@@ -121,10 +139,16 @@ async def read_events(
         mission_id: Mission identifier.
         limit: Page size (1–200).
         offset: Events to skip from the start.
+        user: Authenticated user (injected by dependency).
 
     Returns:
         The page of events plus total/limit/offset metadata.
+
+    Raises:
+        HTTPException: 404 if the mission does not exist or is not owned by the user.
     """
+    if await db.get_owned_mission(mission_id, user.user_id) is None:
+        raise HTTPException(status_code=404, detail="mission not found")
     events = await db.get_events_page(mission_id, limit, offset)
     total = await db.count_events_for_mission(mission_id)
     return EventsPageResponse(events=events, total=total, limit=limit, offset=offset)

@@ -10,13 +10,14 @@ from __future__ import annotations
 import asyncio
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from auth.dependencies import current_user
 from config import settings
 from notifications.telegram_bot import telegram_notifier
 from routes.schemas import ApproveRequest, RejectRequest
 from state import database as db
-from state.models import Action
+from state.models import Action, User
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/actions", tags=["actions"])
@@ -33,21 +34,29 @@ _BACKGROUND: set[asyncio.Task] = set()
 
 
 @router.post("/{action_id}/approve", response_model=Action)
-async def approve_action(action_id: str, body: ApproveRequest, request: Request) -> Action:
+async def approve_action(
+    action_id: str,
+    body: ApproveRequest,
+    request: Request,
+    user: User = Depends(current_user),
+) -> Action:
     """Approve a pending action and dispatch its execution.
 
     Args:
         action_id: Action to approve.
         body: Who approved it.
         request: FastAPI request (for the orchestrator on app.state).
+        user: Authenticated user (injected by dependency).
 
     Returns:
         The updated :class:`Action`.
 
     Raises:
-        HTTPException: 404 if not found, 409 if not pending.
+        HTTPException: 404 if not found or mission not owned, 409 if not pending.
     """
     action = await _require_pending(action_id)
+    if await db.get_owned_mission(action.mission_id, user.user_id) is None:
+        raise HTTPException(status_code=404, detail="action not found")
     updated = await db.update_action_status(action_id, "approved", approved_by=body.approved_by)
     await db.emit_event(
         action.mission_id,
@@ -64,20 +73,27 @@ async def approve_action(action_id: str, body: ApproveRequest, request: Request)
 
 
 @router.post("/{action_id}/reject", response_model=Action)
-async def reject_action(action_id: str, body: RejectRequest) -> Action:
+async def reject_action(
+    action_id: str,
+    body: RejectRequest,
+    user: User = Depends(current_user),
+) -> Action:
     """Reject a pending action.
 
     Args:
         action_id: Action to reject.
         body: Who rejected it and why.
+        user: Authenticated user (injected by dependency).
 
     Returns:
         The updated :class:`Action`.
 
     Raises:
-        HTTPException: 404 if not found, 409 if not pending.
+        HTTPException: 404 if not found or mission not owned, 409 if not pending.
     """
     action = await _require_pending(action_id)
+    if await db.get_owned_mission(action.mission_id, user.user_id) is None:
+        raise HTTPException(status_code=404, detail="action not found")
     updated = await db.update_action_status(action_id, "rejected", approved_by=body.approved_by)
     await db.emit_event(
         action.mission_id,

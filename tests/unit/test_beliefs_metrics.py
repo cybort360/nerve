@@ -204,11 +204,12 @@ async def test_metric_series_isolated_between_missions(mock_db):
 # GET /missions/{id} — response includes beliefs and metric_series
 # --------------------------------------------------------------------------- #
 async def test_read_mission_state_includes_beliefs_and_metrics(mock_db):
-    mission = await db.create_mission("checkout errors", "INCIDENT_RESPONSE")
+    user = await db.create_user("t@test.io", "h")
+    mission = await db.create_mission("checkout errors", "INCIDENT_RESPONSE", owner_id=user.user_id)
     await db.write_belief(mission.mission_id, "root_cause", "Root cause", "deploy #42")
     await db.record_metric(mission.mission_id, "error rate", 5.5, unit="%")
 
-    resp = await mission_routes.read_mission_state(mission.mission_id, _fake_request())
+    resp = await mission_routes.read_mission_state(mission.mission_id, _fake_request(), user)
 
     assert len(resp.beliefs) == 1
     assert resp.beliefs[0].key == "root_cause"
@@ -220,9 +221,10 @@ async def test_read_mission_state_includes_beliefs_and_metrics(mock_db):
 
 
 async def test_read_mission_state_beliefs_and_metrics_empty_when_none(mock_db):
-    mission = await db.create_mission("g", "GENERAL")
+    user = await db.create_user("t@test.io", "h")
+    mission = await db.create_mission("g", "GENERAL", owner_id=user.user_id)
 
-    resp = await mission_routes.read_mission_state(mission.mission_id, _fake_request())
+    resp = await mission_routes.read_mission_state(mission.mission_id, _fake_request(), user)
 
     assert resp.beliefs == []
     assert resp.metric_series == []
@@ -232,10 +234,11 @@ async def test_read_mission_state_beliefs_and_metrics_empty_when_none(mock_db):
 # GET /missions — fleet roster
 # --------------------------------------------------------------------------- #
 async def test_list_missions_returns_summaries(mock_db):
-    m1 = await db.create_mission("incident A", "INCIDENT_RESPONSE")
-    m2 = await db.create_mission("general task", "GENERAL")
+    user = await db.create_user("t@test.io", "h")
+    m1 = await db.create_mission("incident A", "INCIDENT_RESPONSE", owner_id=user.user_id)
+    m2 = await db.create_mission("general task", "GENERAL", owner_id=user.user_id)
 
-    resp = await mission_routes.list_missions()
+    resp = await mission_routes.list_missions(user)
 
     ids = {s.mission_id for s in resp.missions}
     assert m1.mission_id in ids
@@ -248,12 +251,13 @@ async def test_list_missions_returns_summaries(mock_db):
 
 
 async def test_list_missions_ordered_by_most_recent_updated_at(mock_db):
-    m1 = await db.create_mission("first", "GENERAL")
-    m2 = await db.create_mission("second", "GENERAL")
+    user = await db.create_user("t@test.io", "h")
+    m1 = await db.create_mission("first", "GENERAL", owner_id=user.user_id)
+    m2 = await db.create_mission("second", "GENERAL", owner_id=user.user_id)
     # Advance m1's updated_at by updating its status.
     await db.update_mission_status(m1.mission_id, "executing")
 
-    resp = await mission_routes.list_missions()
+    resp = await mission_routes.list_missions(user)
 
     # m1 was updated more recently → should appear first.
     assert resp.missions[0].mission_id == m1.mission_id
@@ -261,14 +265,16 @@ async def test_list_missions_ordered_by_most_recent_updated_at(mock_db):
 
 
 async def test_list_missions_empty_when_none(mock_db):
-    resp = await mission_routes.list_missions()
+    user = await db.create_user("t@test.io", "h")
+    resp = await mission_routes.list_missions(user)
     assert resp.missions == []
 
 
 async def test_list_missions_summary_fields(mock_db):
-    mission = await db.create_mission("check latency", "INCIDENT_RESPONSE")
+    user = await db.create_user("t@test.io", "h")
+    mission = await db.create_mission("check latency", "INCIDENT_RESPONSE", owner_id=user.user_id)
 
-    resp = await mission_routes.list_missions()
+    resp = await mission_routes.list_missions(user)
     assert len(resp.missions) == 1
     s = resp.missions[0]
     assert s.mission_id == mission.mission_id
