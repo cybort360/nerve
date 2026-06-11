@@ -90,11 +90,9 @@ def main() -> int:
         description=_DESCRIPTION,
         requirements=_REQUIREMENTS,
         extra_packages=_EXTRA_PACKAGES,
-        env_vars={
-            "GOOGLE_CLOUD_PROJECT": args.project,
-            "GOOGLE_CLOUD_LOCATION": args.location,
-            "GEMINI_MODEL": args.model,
-        },
+        # GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION are reserved — Agent Engine
+        # injects them into the runtime itself, so only the model id is passed.
+        env_vars={"GEMINI_MODEL": args.model},
     )
 
     print("\n✅ deployed. Resource name:\n")
